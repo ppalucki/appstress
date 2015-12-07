@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
 	"log"
@@ -81,6 +82,22 @@ func rm(id string) {
 	ok(err)
 }
 
+// b number of containers in batch running in n goroutines
+func runBonN(b, n int, baseName, image, cmd string) {
+	wg := sync.WaitGroup{}
+	wg.Add(n) // number of goroutines
+	for i := 0; i < n; i++ {
+		go func(i int) {
+			for j := 0; j < b; j++ {
+				name := fmt.Sprintf("%s-%d-%d", baseName, i, j)
+				run(name, image, cmd)
+			}
+			wg.Done()
+		}(i)
+	}
+	wg.Wait()
+}
+
 func runB(b int, baseName, image, cmd string) {
 	for i := 0; i < b; i++ {
 		name := fmt.Sprintf("%s-%d", baseName, i)
@@ -155,8 +172,43 @@ func run(name, image, cmd string) string {
 
 }
 
+type stats struct {
+	sync.RWMutex
+	m map[string]int
+}
+
+func newStats() *stats {
+	s := &stats{}
+	s.m = make(map[string]int)
+	return s
+}
+
+func (s *stats) add(name string) {
+	s.Lock()
+	s.m[name] += 1
+	s.Unlock()
+}
+
+func (s *stats) dec(name string) {
+	s.Lock()
+	s.m[name] -= 1
+	s.Unlock()
+}
+
+func (s *stats) show() {
+	s.RLock()
+	var b bytes.Buffer
+
+	for k, v := range s.m {
+		fmt.Fprintf(&b, "%s=%d ", k, v)
+		log.Println(b.String())
+	}
+	s.RUnlock()
+}
+
 // start an goroutine and print all events
 func events() {
+	s := newStats()
 	listener := make(chan *docker.APIEvents)
 	err := c.AddEventListener(listener)
 	ok(err)
@@ -164,13 +216,21 @@ func events() {
 		for {
 			select {
 			case e := <-listener:
-				log.Printf("e = %+v\n", e)
+				s.add(e.Status)
 			case <-time.After(1 * time.Second):
 				log.Println("no events observed")
-
 			}
 		}
 	}()
+
+	ticker := time.NewTicker(1 * time.Second)
+	// just s
+	go func() {
+		for _ = range ticker.C {
+			s.show()
+		}
+	}()
+
 }
 
 // // ////////
@@ -192,10 +252,10 @@ func main() {
 
 	pull("alpine")
 
-	run("alpine-1", "alpine", "sleep 864000")
-	runN(100, "c", "alpine", "sleep 864000")
-	runB(2000, "co1oxx", "alpine", "sleep 864000")
-	runNxB(100, 100, "c2", "alpine", "sleep 864000")
+	run("t1", "alpine", "sleep 864000")
+	runN(10, "t2", "alpine", "sleep 864000")
+	runB(10, "t3", "alpine", "sleep 864000")
+	runBonN(10, 10, "t4", "alpine", "sleep 864000")
 
 	// fmt.Printf("cnt = %+v\n", cnt())
 
