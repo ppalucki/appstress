@@ -1,12 +1,14 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"runtime"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 import docker "github.com/fsouza/go-dockerclient"
@@ -29,7 +31,9 @@ func ok(err error) {
 	}
 }
 
-var c *docker.Client
+var (
+	c *docker.Client
+)
 
 func init() {
 
@@ -38,6 +42,11 @@ func init() {
 	var err error
 	c, err = docker.NewClient("http://127.0.0.1:8080")
 	ok(err)
+
+	//  check connection
+	err = c.Ping()
+	ok(err)
+
 }
 
 // // //////////
@@ -118,7 +127,7 @@ func pull(name string) {
 	default:
 		ok(err)
 	}
-	fmt.Printf("using image = %v\n", i.ID)
+	log.Printf("using image %q = %v\n", name, i.ID)
 
 }
 
@@ -146,23 +155,50 @@ func run(name, image, cmd string) string {
 
 }
 
+// start an goroutine and print all events
+func events() {
+	listener := make(chan *docker.APIEvents)
+	err := c.AddEventListener(listener)
+	ok(err)
+	go func() {
+		for {
+			select {
+			case e := <-listener:
+				log.Printf("e = %+v\n", e)
+			case <-time.After(1 * time.Second):
+				log.Println("no events observed")
+
+			}
+		}
+	}()
+}
+
 // // ////////
 //   main  //
 // //////////
 
 func main() {
+	// flags
+	rmAllFlag := flag.Bool("rmall", false, "kurwa")
+	flag.Parse()
+	events()
 
-	err := c.Ping()
-	ok(err)
-	pull("alpine")
+	if *rmAllFlag {
+		log.Println("rmall")
+		rmAll()
+	}
 
 	rmAll()
 
-	// run("alpine-1", "alpine", "sleep 1000")
-	runB(10000, "co1oxx", "alpine", "sleep 32600000")
-	// runN(10000, "c", "alpine", "sleep 1000")
-	// runNxB(1, 1, "c2", "alpine", "sleep 36000000")
+	pull("alpine")
 
-	fmt.Printf("cnt = %+v\n", cnt())
+	run("alpine-1", "alpine", "sleep 864000")
+	runN(100, "c", "alpine", "sleep 864000")
+	runB(2000, "co1oxx", "alpine", "sleep 864000")
+	runNxB(100, 100, "c2", "alpine", "sleep 864000")
+
+	// fmt.Printf("cnt = %+v\n", cnt())
+
+	time.Sleep(5 * time.Second)
 
 }
