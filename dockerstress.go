@@ -22,7 +22,7 @@ func ok(err error) {
 		} else {
 			name = file
 		}
-		if ok {
+		if ok && false {
 			log.Fatalf("ERROR [%s:%d] %s\n", name, line, err)
 		}
 		panic(err)
@@ -72,20 +72,11 @@ func rm(id string) {
 	ok(err)
 }
 
-func runNxB(b, n int, baseName, image, cmd string) {
-	wg := sync.WaitGroup{}
-	wg.Add(b)
-
+func runB(b int, baseName, image, cmd string) {
 	for i := 0; i < b; i++ {
-		go func(i int) {
-			for x := 0; x < n; x++ {
-				name := fmt.Sprintf("%d-%s-%d", i, baseName, x)
-				run(name, image, cmd)
-			}
-			wg.Done()
-		}(i)
+		name := fmt.Sprintf("%s-%d", baseName, i)
+		run(name, image, cmd)
 	}
-	wg.Wait()
 }
 
 func runN(n int, baseName, image, cmd string) {
@@ -167,9 +158,10 @@ func main() {
 
 	rmAll()
 
-	run("alpine-1", "alpine", "sleep 1000")
-	// runN(1000, "c", "alpine", "sleep 1000")
-	runNxB(100, 100, "c2", "alpine", "sleep 36000000")
+	// run("alpine-1", "alpine", "sleep 1000")
+	runB(10000, "co1oxx", "alpine", "sleep 32600000")
+	// runN(10000, "c", "alpine", "sleep 1000")
+	// runNxB(1, 1, "c2", "alpine", "sleep 36000000")
 
 	fmt.Printf("cnt = %+v\n", cnt())
 
