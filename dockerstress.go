@@ -2,17 +2,25 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	docker "github.com/fsouza/go-dockerclient"
 )
 
-import docker "github.com/fsouza/go-dockerclient"
+const (
+	N               = 20  // in parallel
+	B               = 100 // how many in one batch
+	IGNORE_CONFLICT = true
+)
 
 func ok(err error) {
 	if err != nil {
@@ -54,10 +62,23 @@ func init() {
 //   docker  //
 // ////////////
 
-func getAll(all bool) []string {
+func getAll(all bool) []docker.APIContainers {
 	opts := docker.ListContainersOptions{All: all}
 	containers, err := c.ListContainers(opts)
 	ok(err)
+	return containers
+}
+
+func getAllStatuses(all bool) (statuses map[string]int) {
+	statuses = make(map[string]int)
+	for _, c := range getAll(all) {
+		statuses[c.Status] += 1
+	}
+	return
+}
+
+func getAllIds(all bool) []string {
+	containers := getAll(all)
 	ids := []string{}
 	for _, con := range containers {
 		ids = append(ids, con.ID)
@@ -66,10 +87,22 @@ func getAll(all bool) []string {
 }
 
 func rmAll() {
-	ids := getAll(true)
+	ids := getAllIds(true)
 	for _, id := range ids {
 		rm(id)
 	}
+}
+
+func killAll() {
+	ids := getAllIds(false)
+	for _, id := range ids {
+		kill(id)
+	}
+}
+
+func kill(id string) {
+	err := c.KillContainer(docker.KillContainerOptions{id, docker.SIGKILL})
+	ok(err)
 }
 
 func rm(id string) {
@@ -119,16 +152,21 @@ func runN(n int, baseName, image, cmd string) {
 	wg.Wait()
 }
 
-func cnt() int {
-	info, err := c.Info()
-	ok(err)
-	m := info.Map()
+func runnning() int {
+	m := info()
 	v, err := strconv.Atoi(m["Containers"])
 	ok(err)
 	return v
 }
 
-func pull(name string) {
+func info() map[string]string {
+	info, err := c.Info()
+	ok(err)
+	m := info.Map()
+	return m
+}
+
+func pull(name string) string {
 	// get or create an image
 	i, err := c.InspectImage(name)
 	switch err {
@@ -144,7 +182,8 @@ func pull(name string) {
 	default:
 		ok(err)
 	}
-	log.Printf("using image %q = %v\n", name, i.ID)
+	// log.Printf("using image %q = %v\n", name, i.ID)
+	return i.ID
 
 }
 
@@ -154,7 +193,12 @@ func create(name, image, cmd string) string {
 	config := &docker.Config{Cmd: cmds, Image: image, NetworkDisabled: true}
 	cc := docker.CreateContainerOptions{Name: name, Config: config}
 	cont, err := c.CreateContainer(cc)
-	ok(err)
+	if IGNORE_CONFLICT && err == docker.ErrContainerAlreadyExists {
+		log.Println("create ignored - already exists!")
+		return ""
+	} else {
+		ok(err)
+	}
 	return cont.ID
 }
 
@@ -174,18 +218,29 @@ func run(name, image, cmd string) string {
 
 type stats struct {
 	sync.RWMutex
-	m map[string]int
+	m       map[string]int
+	running int
 }
 
-func newStats() *stats {
+func newStats(running int) *stats {
 	s := &stats{}
 	s.m = make(map[string]int)
+	s.running = running
 	return s
 }
 
 func (s *stats) add(name string) {
 	s.Lock()
 	s.m[name] += 1
+
+	// update internal counters accoring to state graph
+	switch name {
+	case "die":
+		s.running -= 1
+	case "start":
+		s.running += 1
+	}
+
 	s.Unlock()
 }
 
@@ -199,16 +254,30 @@ func (s *stats) show() {
 	s.RLock()
 	var b bytes.Buffer
 
-	for k, v := range s.m {
-		fmt.Fprintf(&b, "%s=%d ", k, v)
-		log.Println(b.String())
+	if len(s.m) > 0 {
+		// sort keys
+		keys := []string{}
+		for key, _ := range s.m {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+
+		for _, key := range keys {
+			fmt.Fprintf(&b, "%s=%d,", key, s.m[key])
+		}
+		log.Println(s.running, b.String())
 	}
 	s.RUnlock()
 }
 
+func (s *stats) feedInflux() {
+
+}
+
 // start an goroutine and print all events
 func events() {
-	s := newStats()
+	running := len(getAllIds(false))
+	s := newStats(running)
 	listener := make(chan *docker.APIEvents)
 	err := c.AddEventListener(listener)
 	ok(err)
@@ -237,28 +306,125 @@ func events() {
 //   main  //
 // //////////
 
-func main() {
-	// flags
-	rmAllFlag := flag.Bool("rmall", false, "kurwa")
-	flag.Parse()
-	events()
+func printInfo() {
+	m := info()
+	mb, err := json.MarshalIndent(m, "", "  ")
+	ok(err)
+	fmt.Println(string(mb))
+}
 
-	if *rmAllFlag {
-		log.Println("rmall")
-		rmAll()
+// run args cmd as functions
+func cmds() {
+
+	stop := make(chan struct{})
+
+	cmds := map[string]func(){
+		"events": func() {
+			events()
+		},
+		"rmall": func() {
+			rmAll()
+		},
+		"killall": func() {
+			killAll()
+		},
+		"pull": func() {
+			pull("alpine")
+
+		},
+		"info": func() {
+			printInfo()
+		},
+		"t1": func() {
+			run("t1", "alpine", "sleep 864000")
+		},
+		"tn": func() {
+			runN(N, "tn", "alpine", "sleep 864000")
+		},
+		"tb": func() {
+			runB(B, "tb", "alpine", "sleep 864000")
+		},
+		"tnb": func() {
+			runBonN(B, N, "tnb", "alpine", "sleep 864000")
+		},
+
+		"2tn": func() {
+			runN(N, "2tn", "alpine", "sleep 864000")
+		},
+		"2tb": func() {
+			runB(B, "2tb", "alpine", "sleep 864000")
+		},
+		"2tnb": func() {
+			runBonN(B, N, "2tnb", "alpine", "sleep 864000")
+		},
+
+		"sleep": func() {
+			time.Sleep(5 * time.Second)
+		},
+
+		"running": func() {
+			log.Println("running:", runnning())
+		},
+		"statuses": func() {
+			statuses := getAllStatuses(true)
+			fmt.Printf("statuses = %#v\n", statuses)
+		},
+		"getall": func() {
+			for _, id := range getAllIds(true) {
+				println(id)
+			}
+		},
+		"reportrunning": func() {
+			go func(stop chan struct{}) {
+				ticker := time.NewTicker(1 * time.Second)
+				for {
+					select {
+					case <-ticker.C:
+						log.Println("running:", runnning())
+					case <-stop:
+						break
+					}
+				}
+			}(stop)
+		},
+		"reportstatuses": func() {
+			go func(stop chan struct{}) {
+				ticker := time.NewTicker(1 * time.Second)
+				for _ = range ticker.C {
+					statuses := getAllStatuses(true)
+					for k, v := range statuses {
+						log.Printf("* %q = %d\n", k, v)
+					}
+				}
+			}(stop)
+
+		},
 	}
 
-	rmAll()
+	// parse params
+	flag.Parse()
 
-	pull("alpine")
+	// precheck
+	for _, cmd := range flag.Args() {
+		_, ok := cmds[cmd]
+		if !ok {
+			log.Fatalf("cmd %q not found", cmd)
+		}
+	}
 
-	run("t1", "alpine", "sleep 864000")
-	runN(10, "t2", "alpine", "sleep 864000")
-	runB(10, "t3", "alpine", "sleep 864000")
-	runBonN(10, 10, "t4", "alpine", "sleep 864000")
+	wg := sync.WaitGroup{}
+	for _, cmd := range flag.Args() {
+		wg.Add(1)
+		f := func(cmd string) {
+			cmds[cmd]()
+			wg.Done()
+		}
+		f(cmd)
+	}
+	close(stop)
+	wg.Wait()
+}
 
-	// fmt.Printf("cnt = %+v\n", cnt())
-
-	time.Sleep(5 * time.Second)
-
+func main() {
+	cmds()
 }
