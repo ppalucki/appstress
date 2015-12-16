@@ -5,7 +5,11 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"log"
+	"net/http"
+	"os"
 	"runtime"
 	"sort"
 	"strconv"
@@ -17,9 +21,10 @@ import (
 )
 
 const (
-	N               = 20  // in parallel
-	B               = 100 // how many in one batch
+	N               = 100  // in parallel
+	B               = 1000 // how many in one batch
 	IGNORE_CONFLICT = true
+	INFLUX_URL      = "http://localhost:8086/write?db=docker"
 )
 
 func ok(err error) {
@@ -44,7 +49,7 @@ var (
 	c *docker.Client
 )
 
-func init() {
+func connect() {
 
 	// connect docker
 	// c, err := docker.NewClientFromEnv()
@@ -220,12 +225,14 @@ type stats struct {
 	sync.RWMutex
 	m       map[string]int
 	running int
+	when    time.Time
 }
 
 func newStats(running int) *stats {
 	s := &stats{}
 	s.m = make(map[string]int)
 	s.running = running
+	s.when = time.Now()
 	return s
 }
 
@@ -240,18 +247,20 @@ func (s *stats) add(name string) {
 	case "start":
 		s.running += 1
 	}
-
+	s.when = time.Now()
 	s.Unlock()
 }
 
 func (s *stats) dec(name string) {
 	s.Lock()
 	s.m[name] -= 1
+	s.when = time.Now()
 	s.Unlock()
 }
 
 func (s *stats) show() {
 	s.RLock()
+	defer s.RUnlock()
 	var b bytes.Buffer
 
 	if len(s.m) > 0 {
@@ -267,15 +276,66 @@ func (s *stats) show() {
 		}
 		log.Println(s.running, b.String())
 	}
-	s.RUnlock()
+}
+
+// -------------------------------------------------- influx
+
+// dumpInflux date in influx 9 format
+// measurement[,tag_key1=tag_value1...] field_key=field_value[,field_key2=field_value2] [timestamp]
+// eg. measurement,tkey1=tval1,tkey2=tval2 fkey=fval,fkey2=fval2 1234567890000000000
+// measurement
+func (s *stats) dumpInflux(measurement string, tags map[string]string) (b *bytes.Buffer) {
+
+	b = new(bytes.Buffer)
+
+	s.RLock()
+	defer s.RUnlock()
+	b.WriteString(measurement)
+	if len(tags) > 0 {
+		for k, v := range tags {
+			fmt.Fprintf(b, ",%s=%s", k, v)
+		}
+	}
+	b.WriteByte(' ')
+	if len(s.m) > 0 {
+		for k, v := range s.m {
+			fmt.Fprintf(b, "%s=%d,", k, v)
+		}
+	}
+	fmt.Fprintf(b, "running=%v ", s.running)
+	fmt.Fprintf(b, "%d", s.when.UnixNano())
+
+	return
 }
 
 func (s *stats) feedInflux() {
+	data := s.dumpInflux("docker", nil)
+	resp, err := http.Post(INFLUX_URL, "application/octet-stream", data)
+	if err != nil {
+		log.Print("err problem with connecting to influx:", err)
+	} else {
+		if resp.StatusCode != 200 {
+			txt, err := ioutil.ReadAll(resp.Body)
+			if err != nil {
+				panic(err)
+			}
+			log.Print("err problem with posting data to influx:", string(txt))
+		}
+	}
+}
 
+func (s *stats) feedFile(w io.Writer) {
+	data := s.dumpInflux("docker", nil)
+	data.WriteByte('\n')
+	n, err := io.Copy(w, data)
+	if err != nil {
+		panic(err)
+	}
+	log.Printf("%d bytes written\n", n)
 }
 
 // start an goroutine and print all events
-func events() {
+func events(show, influx, file bool) {
 	running := len(getAllIds(false))
 	s := newStats(running)
 	listener := make(chan *docker.APIEvents)
@@ -293,10 +353,30 @@ func events() {
 	}()
 
 	ticker := time.NewTicker(1 * time.Second)
+
+	var (
+		f *os.File
+	)
+	if file {
+		f, err = os.Create("influx.data")
+		if err != nil {
+			panic(err)
+		}
+	}
+
 	// just s
 	go func() {
 		for _ = range ticker.C {
-			s.show()
+			if show {
+				s.show()
+			}
+			if influx {
+				s.feedInflux()
+			}
+			if file {
+				s.feedFile(f)
+			}
+
 		}
 	}()
 
@@ -318,9 +398,20 @@ func cmds() {
 
 	stop := make(chan struct{})
 
+	var show, influx, file bool
+
 	cmds := map[string]func(){
+		"influx": func() {
+			influx = true
+		},
+		"file": func() {
+			file = true
+		},
+		"show": func() {
+			show = true
+		},
 		"events": func() {
-			events()
+			events(show, influx, file)
 		},
 		"rmall": func() {
 			rmAll()
@@ -397,7 +488,6 @@ func cmds() {
 					}
 				}
 			}(stop)
-
 		},
 	}
 
@@ -426,5 +516,6 @@ func cmds() {
 }
 
 func main() {
+	connect()
 	cmds()
 }

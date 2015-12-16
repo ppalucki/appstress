@@ -9,3 +9,15 @@ DOCKER_HOST=unix:///var/run/early-docker.sock docker start golang
 ```
 
 (use early-docker to not influence primary docker engine)
+
+
+
+# Get the traces
+
+wget 'http://localhost:8080/debug/pprof/profile' -O t1.pprof
+wget 'http://localhost:8080/debug/pprof/trace?seconds=30' -O t1.trace
+
+go tool pprof -output t1.pprof http://localhost:8080/debug/pprof/profile
+
+
+
