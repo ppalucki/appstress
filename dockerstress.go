@@ -20,11 +20,12 @@ import (
 	docker "github.com/fsouza/go-dockerclient"
 )
 
-const (
+var (
 	N               = 100  // in parallel
 	B               = 1000 // how many in one batch
 	IGNORE_CONFLICT = true
-	INFLUX_URL      = "http://localhost:8086/write?db=docker"
+	INFLUX_URL      = "http://localhost:8086/write?db=docker" // dbname
+	NAME            = "docker"                                // measurment name
 )
 
 func ok(err error) {
@@ -309,7 +310,7 @@ func (s *stats) dumpInflux(measurement string, tags map[string]string) (b *bytes
 }
 
 func (s *stats) feedInflux() {
-	data := s.dumpInflux("docker", nil)
+	data := s.dumpInflux(NAME, nil)
 	resp, err := http.Post(INFLUX_URL, "application/octet-stream", data)
 	if err != nil {
 		log.Print("err problem with connecting to influx:", err)
@@ -491,8 +492,22 @@ func cmds() {
 		},
 	}
 
+	flag.BoolVar(&IGNORE_CONFLICT, "ignore", IGNORE_CONFLICT, "ignore conflicts name when creating container")
+	flag.IntVar(&N, "n", N, "how many containers to start in parallel")
+	flag.IntVar(&B, "b", B, "how many containers to start in on batch")
+	flag.StringVar(&NAME, "name", NAME, "how many containers to start in on batch")
+	help := flag.Bool("h", false, "help")
+
 	// parse params
 	flag.Parse()
+
+	if *help {
+		fmt.Println("Available commands:")
+		for cmd, _ := range cmds {
+			fmt.Println(cmd)
+		}
+		os.Exit(0)
+	}
 
 	// precheck
 	for _, cmd := range flag.Args() {
