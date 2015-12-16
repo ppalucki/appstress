@@ -21,6 +21,7 @@ import (
 )
 
 var (
+	DOCKER          = "http://127.0.0.1:8080"
 	N               = 100  // in parallel
 	B               = 1000 // how many in one batch
 	IGNORE_CONFLICT = true
@@ -55,7 +56,7 @@ func connect() {
 	// connect docker
 	// c, err := docker.NewClientFromEnv()
 	var err error
-	c, err = docker.NewClient("http://127.0.0.1:8080")
+	c, err = docker.NewClient(DOCKER)
 	ok(err)
 
 	//  check connection
@@ -495,7 +496,8 @@ func cmds() {
 	flag.BoolVar(&IGNORE_CONFLICT, "ignore", IGNORE_CONFLICT, "ignore conflicts name when creating container")
 	flag.IntVar(&N, "n", N, "how many containers to start in parallel")
 	flag.IntVar(&B, "b", B, "how many containers to start in on batch")
-	flag.StringVar(&NAME, "name", NAME, "how many containers to start in on batch")
+	flag.StringVar(&NAME, "name", NAME, "name of experiment (measurment and file name)")
+	flag.StringVar(&DOCKER, "docker", DOCKER, "docker url")
 	help := flag.Bool("h", false, "help")
 
 	// parse params
