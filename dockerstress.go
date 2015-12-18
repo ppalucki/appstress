@@ -310,7 +310,37 @@ func (s *stats) dumpInflux(measurement string, tags map[string]string) (b *bytes
 	return
 }
 
-func (s *stats) feedInflux() {
+type influx struct {
+	// measrument to Buffer
+	ms map[string]bytes.Buffer
+}
+
+func newInflux() *influx {
+	i := new(influx)
+	i.ms = make(map[string]bytes.Buffer)
+	return i
+}
+
+func (i *influx) log(measurement string, tags map[string]string, data [string]int) {
+	b := i.ms[measurement]
+	b.WriteString(measurement)
+	if len(tags) > 0 {
+		for k, v := range tags {
+			fmt.Fprintf(b, ",%s=%s", k, v)
+		}
+	}
+	b.WriteByte(' ')
+	if len(s.m) > 0 {
+		for k, v := range s.m {
+			fmt.Fprintf(b, "%s=%d,", k, v)
+		}
+	}
+	fmt.Fprintf(b, "running=%v ", s.running)
+	fmt.Fprintf(b, "%d", s.when.UnixNano())
+
+}
+
+func (i *inlux) feedInflux() {
 	data := s.dumpInflux(NAME, nil)
 	resp, err := http.Post(INFLUX_URL, "application/octet-stream", data)
 	if err != nil {
@@ -326,7 +356,7 @@ func (s *stats) feedInflux() {
 	}
 }
 
-func (s *stats) feedFile(w io.Writer) {
+func (i *stats) feedFile(w io.Writer) {
 	data := s.dumpInflux("docker", nil)
 	data.WriteByte('\n')
 	n, err := io.Copy(w, data)
@@ -504,6 +534,7 @@ func cmds() {
 	flag.Parse()
 
 	if *help {
+		flag.PrintDefaults()
 		fmt.Println("Available commands:")
 		for cmd, _ := range cmds {
 			fmt.Println(cmd)
