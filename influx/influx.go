@@ -9,6 +9,8 @@ SaveFile("/tmp/data.finlux")
 curl -i -XPOST 'http://localhost:8086/write?db=test2' -d @/tmp/influx924390070
 or
 SaveInflux("http://127.0.0.1:8086", "test")
+
+TODO: replace mutex with channels :P
 */
 package influx
 
@@ -21,23 +23,26 @@ import (
 
 	client "github.com/influxdb/influxdb/client/v2"
 	models "github.com/influxdb/influxdb/models"
+
+	"sync"
 )
 
-type storage struct {
+var (
 	bp client.BatchPoints
-}
-
-var s storage
+	m  sync.RWMutex
+	ch chan client.Point
+)
 
 func New() error {
 	c := client.BatchPointsConfig{}
-	bp, err := client.NewBatchPoints(c)
+	var err error
+	_bp, err := client.NewBatchPoints(c)
 	if err != nil {
 		return err
 	}
-	s = storage{
-		bp: bp,
-	}
+	m.Lock()
+	defer m.Unlock()
+	bp = _bp
 	return nil
 }
 
@@ -61,6 +66,7 @@ func Open(fn string) error {
 		return err
 	}
 
+	defer m.Unlock()
 	for _, p := range points {
 		err := Store(p.Name(), p.Tags(), p.Fields(), p.Time())
 		if err != nil {
@@ -71,17 +77,19 @@ func Open(fn string) error {
 	return nil
 }
 
-func Store(
-	name string,
-	tags map[string]string,
-	fields map[string]interface{},
-	t time.Time,
-) error {
+func store(name string, tags map[string]string, fields map[string]interface{}, t time.Time) error {
 	p, err := client.NewPoint(name, tags, fields, t)
 	if err != nil {
 		return err
 	}
-	s.bp.AddPoint(p)
+	m.Lock()
+	defer m.Unlock()
+	bp.AddPoint(p)
+	return nil
+}
+
+func Store(name string, tags map[string]string, fields map[string]interface{}, t time.Time) error {
+	store(name, tags, fields, t)
 	return nil
 }
 
@@ -90,11 +98,11 @@ func SaveFile(fn string) error {
 	if err != nil {
 		return err
 	}
+	defer f.Close()
 	err = Save(f)
 	if err != nil {
 		return err
 	}
-	f.Close()
 	return nil
 }
 
@@ -104,7 +112,9 @@ func Show() error {
 
 // flush stored data to file
 func Save(w io.Writer) error {
-	for _, p := range s.bp.Points() {
+	m.RLock()
+	defer m.RUnlock()
+	for _, p := range bp.Points() {
 		_, err := w.Write([]byte(p.String() + "\n"))
 		if err != nil {
 			return err
@@ -129,6 +139,6 @@ func SaveInflux(url string, db string) error {
 		return err
 	}
 
-	s.bp.SetDatabase(db)
-	return c.Write(s.bp)
+	bp.SetDatabase(db)
+	return c.Write(bp)
 }
