@@ -27,12 +27,12 @@ var (
 	IGNORE_CONFLICT = true
 	INFLUX_URL      = "http://localhost:8086/write?db=docker" // dbname
 	NAME            = "docker"                                // measurment name
+	c               *docker.Client
 )
 
 func ok(err error) {
 	if err != nil {
 		pc, file, line, ok := runtime.Caller(1)
-
 		fn := runtime.FuncForPC(pc)
 		var name string
 		if fn != nil {
@@ -47,23 +47,20 @@ func ok(err error) {
 	}
 }
 
-var (
-	c *docker.Client
-)
-
-func connect() {
-
+func connectDocker() {
 	// connect docker
 	// c, err := docker.NewClientFromEnv()
 	var err error
 	c, err = docker.NewClient(DOCKER)
 	ok(err)
-
 	//  check connection
 	err = c.Ping()
 	ok(err)
-
 }
+
+// // //////////
+//   influx  //
+// ////////////
 
 // // //////////
 //   docker  //
@@ -564,6 +561,6 @@ func cmds() {
 }
 
 func main() {
-	connect()
+	connectDocker()
 	cmds()
 }
