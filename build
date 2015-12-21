@@ -1,0 +1,6 @@
+mkdir -p gopath/src/github.com/ppalucki
+ln -v -s ../../../.. gopath/src/github.com/ppalucki/dockerstress
+GOPATH=`pwd`/gopath
+go get -v github.com/ppalucki/dockerstress
+go build 
+
