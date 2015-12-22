@@ -8,8 +8,7 @@ import (
 )
 
 // start an goroutine that collects events in influx store
-func events() {
-
+func storeEvents() {
 	listener := make(chan *docker.APIEvents)
 	err := c.AddEventListener(listener)
 	ok(err)

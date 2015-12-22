@@ -1,12 +1,8 @@
 package main
 
 import (
-	"encoding/json"
 	"flag"
-	"fmt"
 	"log"
-	"os"
-	"runtime"
 	"sync"
 	"time"
 
@@ -16,172 +12,74 @@ import (
 
 var (
 	DOCKER          = "http://127.0.0.1:8080"
+	INFLUX          = "http://127.0.0.1:8086"
+	FILE            = "influx.data"
 	N               = 100  // in parallel
 	B               = 1000 // how many in one batch
 	IGNORE_CONFLICT = true
 	NAME            = "docker" // measurment name
+	IMAGE           = "alpine"
+	CMD             = "sleep 8640000"
+	REPORT          = time.Duration(1 * time.Second)
+	STORE           = time.Duration(1 * time.Second)
+	PIDFILE         = "docker.pid"
 
-	c *docker.Client
+	c    *docker.Client
+	quit chan struct{}
 )
 
-func ok(err error) {
-	if err != nil {
-		pc, file, line, ok := runtime.Caller(1)
-		fn := runtime.FuncForPC(pc)
-		var name string
-		if fn != nil {
-			name = fn.Name()
-		} else {
-			name = file
-		}
-		if ok && false {
-			log.Fatalf("ERROR [%s:%d] %s\n", name, line, err)
-		}
-		panic(err)
-	}
-}
-
-func connectDocker() {
+func initDocker() {
 	// connect docker
 	// c, err := docker.NewClientFromEnv()
 	var err error
 	c, err = docker.NewClient(DOCKER)
-	ok(err)
+	warn(err)
 	//  check connection
 	err = c.Ping()
-	ok(err)
+	warn(err)
 }
-
-// // //////////
-//   influx  //
-// ////////////
 
 // // ////////
 //   main  //
 // //////////
 
-func printInfo() {
-	m := info()
-	mb, err := json.MarshalIndent(m, "", "  ")
-	ok(err)
-	fmt.Println(string(mb))
-}
+func main() {
 
-// run args cmd as functions
-func cmds() {
-
-	stop := make(chan struct{})
-
-	var show, influx, file bool
-
-	cmds := map[string]func(){
-		"influx": func() {
-			influx = true
-		},
-		"file": func() {
-			file = true
-		},
-		"show": func() {
-			show = true
-		},
-		"events": func() {
-			events(show, influx, file)
-		},
-		"rmall": func() {
-			rmAll()
-		},
-		"killall": func() {
-			killAll()
-		},
-		"pull": func() {
-			pull("alpine")
-
-		},
-		"info": func() {
-			printInfo()
-		},
-		"t1": func() {
-			run("t1", "alpine", "sleep 864000")
-		},
-		"tn": func() {
-			runN(N, "tn", "alpine", "sleep 864000")
-		},
-		"tb": func() {
-			runB(B, "tb", "alpine", "sleep 864000")
-		},
-		"tnb": func() {
-			runBonN(B, N, "tnb", "alpine", "sleep 864000")
-		},
-
-		"2tn": func() {
-			runN(N, "2tn", "alpine", "sleep 864000")
-		},
-		"2tb": func() {
-			runB(B, "2tb", "alpine", "sleep 864000")
-		},
-		"2tnb": func() {
-			runBonN(B, N, "2tnb", "alpine", "sleep 864000")
-		},
-
-		"sleep": func() {
-			time.Sleep(5 * time.Second)
-		},
-
-		"running": func() {
-			log.Println("running:", runnning())
-		},
-		"statuses": func() {
-			statuses := getAllStatuses(true)
-			fmt.Printf("statuses = %#v\n", statuses)
-		},
-		"getall": func() {
-			for _, id := range getAllIds(true) {
-				println(id)
-			}
-		},
-		"reportrunning": func() {
-			go func(stop chan struct{}) {
-				ticker := time.NewTicker(1 * time.Second)
-				for {
-					select {
-					case <-ticker.C:
-						log.Println("running:", runnning())
-					case <-stop:
-						break
-					}
-				}
-			}(stop)
-		},
-		"reportstatuses": func() {
-			go func(stop chan struct{}) {
-				ticker := time.NewTicker(1 * time.Second)
-				for _ = range ticker.C {
-					statuses := getAllStatuses(true)
-					for k, v := range statuses {
-						log.Printf("* %q = %d\n", k, v)
-					}
-				}
-			}(stop)
-		},
-	}
+	quit = make(chan struct{})
 
 	flag.BoolVar(&IGNORE_CONFLICT, "ignore", IGNORE_CONFLICT, "ignore conflicts name when creating container")
 	flag.IntVar(&N, "n", N, "how many containers to start in parallel")
 	flag.IntVar(&B, "b", B, "how many containers to start in on batch")
 	flag.StringVar(&NAME, "name", NAME, "name of experiment (measurment and file name)")
 	flag.StringVar(&DOCKER, "docker", DOCKER, "docker url")
-	help := flag.Bool("h", false, "help")
+	flag.StringVar(&INFLUX, "influx", INFLUX, "influx url")
+	flag.StringVar(&FILE, "file", FILE, "file to influx data")
+	flag.DurationVar(&REPORT, "report", REPORT, "report interval")
+	flag.DurationVar(&STORE, "store", STORE, "store interval")
 
 	// parse params
 	flag.Parse()
 
-	if *help {
-		flag.PrintDefaults()
-		fmt.Println("Available commands:")
-		for cmd, _ := range cmds {
-			fmt.Println(cmd)
-		}
-		os.Exit(0)
+	influx.New()
+	initDocker()
+
+	cmds := map[string]func(){
+		"events":         storeEvents,
+		"rmall":          rmAll,
+		"killall":        killAll,
+		"printInfo":      printInfo,
+		"pull":           pullIMAGE,
+		"t1":             t1,
+		"tn":             tn,
+		"tb":             tb,
+		"tnb":            tnb,
+		"reportStatuses": reportStatuses,
+		"printStatuses":  printStatuses,
+		"getall": func() {
+			for _, id := range getAllIds(true) {
+				println(id)
+			}
+		},
 	}
 
 	// precheck
@@ -192,6 +90,7 @@ func cmds() {
 		}
 	}
 
+	// fire
 	wg := sync.WaitGroup{}
 	for _, cmd := range flag.Args() {
 		wg.Add(1)
@@ -201,12 +100,6 @@ func cmds() {
 		}
 		f(cmd)
 	}
-	close(stop)
+	close(quit)
 	wg.Wait()
-}
-
-func main() {
-	influx.New()
-	connectDocker()
-	cmds()
 }
