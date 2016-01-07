@@ -13,7 +13,7 @@ import (
 
 func loadPid() (int32, error) {
 
-	pidfile, err := os.Open(PIDFILE)
+	pidfile, err := os.Open(DOCKER_PIDFILE)
 	if err != nil {
 		return 0, err
 	}
@@ -46,6 +46,10 @@ func loadPid() (int32, error) {
 	}
 
 	return int32(pid), nil
+}
+
+func storeProc() {
+	go proc()
 }
 
 // dockerData gather date from docker daemon directly (using DOCKER_HOST)
