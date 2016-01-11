@@ -2,22 +2,8 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"time"
 )
-
-func printStatuses() {
-	s := statuses(true)
-	log.Printf("statuses = %#v\n", s)
-}
-
-func reportStatuses() {
-	go func() {
-		printStatuses()
-		time.Sleep(REPORT * time.Second)
-	}()
-
-}
 
 func pullIMAGE() {
 	pull(IMAGE)

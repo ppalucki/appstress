@@ -28,6 +28,9 @@ func sched(tags map[string]string, dockerLog string) {
 		text := line.Text
 		if strings.Contains(text, "SCHED") {
 			data := strings.Split(text, " ")
+			if data[0] != "SCHED" {
+				log.Fatal("unrecognized sched trace data: ", text)
+			}
 
 			//SCHED 0ms: 2.gomaxprocs=1 idleprocs=0 threads=2 spinningthreads=0 idlethreads=0 runqueue=0 [1]
 			gomaxprocs, err := strconv.Atoi(strings.Split(data[2], "=")[1])

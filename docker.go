@@ -147,7 +147,8 @@ func pull(name string) string {
 		i, err = c.InspectImage("alpine")
 		ok(err)
 	default:
-		ok(err)
+		warn(err)
+		return ""
 	}
 	// log.Printf("using image %q = %v\n", name, i.ID)
 	return i.ID

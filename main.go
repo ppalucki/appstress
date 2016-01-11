@@ -4,6 +4,7 @@ import (
 	"flag"
 	"log"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -12,9 +13,10 @@ import (
 )
 
 var (
-	DOCKER_URL     = "http://127.0.0.1:8080"
+	// DOCKER_URL     = "http://127.0.0.1:8080"
+	DOCKER_URL     = "unix:///var/run/docker.sock"
 	DOCKER_LOG     = "/var/log/docker.log"
-	DOCKER_PIDFILE = "docker.pid"
+	DOCKER_PIDFILE = "/var/run/docker.pid"
 	// INFLUX          = "http://127.0.0.1:8086"
 	INFLUX          = "file://influx.data"
 	N               = 100  // in parallel
@@ -76,9 +78,13 @@ func main() {
 	initDocker()
 
 	cmds := map[string]func(){
-		"sched":          storeSched,
-		"events":         storeEvents,
-		"proc":           storeProc,
+		// store
+		"sched":    storeSched,
+		"events":   storeEvents,
+		"proc":     storeProc,
+		"statuses": storeStatuses,
+		"info":     storeInfo,
+
 		"rmall":          rmAll,
 		"killall":        killAll,
 		"printInfo":      printInfo,
@@ -114,6 +120,11 @@ func main() {
 	for _, cmd := range flag.Args() {
 		_, ok := cmds[cmd]
 		if !ok {
+			l := []string{}
+			for k, _ := range cmds {
+				l = append(l, k)
+			}
+			log.Println("available commands:", strings.Join(l, ", "))
 			log.Fatalf("cmd %q not found", cmd)
 		}
 	}

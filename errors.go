@@ -6,8 +6,6 @@ import (
 	"runtime"
 )
 
-const PANIC = false
-
 func where(err error) string {
 	pc, file, line, ok := runtime.Caller(2)
 	fn := runtime.FuncForPC(pc)
@@ -26,11 +24,7 @@ func where(err error) string {
 func ok(err error) {
 	if err != nil {
 		msg := where(err)
-		if PANIC {
-			panic(err)
-		} else {
-			log.Fatalf("ERROR: " + msg)
-		}
+		panic(msg)
 	}
 }
 

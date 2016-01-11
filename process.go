@@ -85,7 +85,8 @@ func proc() {
 			time.Sleep(STORE)
 			continue
 		}
-		influx.Store("process", nil, map[string]interface{}{"threads": threads, "vmsize": mi.VMS, "rss": mi.RSS}, time.Now())
+
+		influx.Store("process", nil, map[string]interface{}{"threads": threads, "vmsize": int(mi.VMS), "rss": int(mi.RSS)}, time.Now())
 
 		time.Sleep(STORE)
 	}
