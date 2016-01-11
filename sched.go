@@ -5,10 +5,8 @@ import (
 	"log"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/hpcloud/tail"
-	"github.com/ppalucki/dockerstress/influx"
 )
 
 func storeSched() {
@@ -59,23 +57,22 @@ func sched(tags map[string]string, dockerLog string) {
 			}
 
 			tags["kind"] = "metrics"
-			influx.Store("sched", tags,
+			store("sched", tags,
 				map[string]interface{}{
 					"gomaxprocs": gomaxprocs, "idleprocs": idleprocs, "threads": threads, "spinningthreads": spinningthreads, "idlethreads": idlethreads, "runqueue": runqueue},
-				time.Now(),
 			)
 		}
 
 		if strings.Contains("ERRO[", text) {
 			fmt.Println("ERROR:", text)
 			tags["kind"] = "error"
-			influx.Store("sched", tags, map[string]interface{}{"message": text, "count": 1, "tags": "error"}, time.Now())
+			store("sched", tags, map[string]interface{}{"message": text, "count": 1, "tags": "error"})
 		}
 
 		if strings.Contains("WARN[", text) {
 			fmt.Println("WARNING:", text)
 			tags["kind"] = "warn"
-			influx.Store("sched", tags, map[string]interface{}{"message": text, "count": 1, "tags": "warn"}, time.Now())
+			store("sched", tags, map[string]interface{}{"message": text, "count": 1, "tags": "warn"})
 		}
 	}
 }

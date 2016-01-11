@@ -1,21 +1,16 @@
 package main
 
-import (
-	"time"
-
-	"github.com/fsouza/go-dockerclient"
-	"github.com/ppalucki/dockerstress/influx"
-)
+import "github.com/fsouza/go-dockerclient"
 
 // start an goroutine that collects events in influx store
 func storeEvents() {
 	listener := make(chan *docker.APIEvents)
-	err := c.AddEventListener(listener)
+	err := dockerClient.AddEventListener(listener)
 	ok(err)
 	go func() {
 		for {
 			e := <-listener
-			influx.Store("events", map[string]string{"type": e.Status}, map[string]interface{}{"value": 1}, time.Now())
+			store("events", map[string]string{}, map[string]interface{}{"value": 1, "kind": e.Status})
 		}
 	}()
 }

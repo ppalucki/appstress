@@ -1,11 +1,8 @@
 package main
 
 import (
-	"log"
 	"strings"
 	"time"
-
-	"github.com/ppalucki/dockerstress/influx"
 )
 
 func toFields(s map[string]int) map[string]interface{} {
@@ -27,22 +24,14 @@ func toFields(s map[string]int) map[string]interface{} {
 	return fields
 }
 
-func printStatuses() {
-	fields := toFields(statuses(true))
-	log.Printf("fields = %#v\n", fields)
-}
-
-func reportStatuses() {
-	go func() {
-		printStatuses()
-		time.Sleep(REPORT * time.Second)
-	}()
-}
-
 func storeStatuses() {
 	go func() {
 		fields := toFields(statuses(true))
-		influx.Store("statuses", nil, fields, time.Now())
+		if len(fields) == 0 {
+			fields["up"] = 0
+			fields["exited"] = 0
+		}
+		store("statuses", nil, fields)
 		time.Sleep(REPORT * time.Second)
 	}()
 }

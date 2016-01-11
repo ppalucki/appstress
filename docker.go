@@ -16,7 +16,7 @@ import (
 
 func getAll(all bool) []docker.APIContainers {
 	opts := docker.ListContainersOptions{All: all}
-	containers, err := c.ListContainers(opts)
+	containers, err := dockerClient.ListContainers(opts)
 	ok(err)
 	return containers
 }
@@ -65,7 +65,7 @@ func killAll() {
 }
 
 func kill(id string) {
-	err := c.KillContainer(docker.KillContainerOptions{id, docker.SIGKILL})
+	err := dockerClient.KillContainer(docker.KillContainerOptions{id, docker.SIGKILL})
 	ok(err)
 }
 
@@ -75,7 +75,7 @@ func rm(id string) {
 		Force: true,
 		ID:    id,
 	}
-	err := c.RemoveContainer(opts)
+	err := dockerClient.RemoveContainer(opts)
 	ok(err)
 }
 
@@ -124,7 +124,7 @@ func runnning() int {
 }
 
 func info() map[string]string {
-	info, err := c.Info()
+	info, err := dockerClient.Info()
 	if err != nil {
 		warn(err)
 		return nil
@@ -135,16 +135,16 @@ func info() map[string]string {
 
 func pull(name string) string {
 	// get or create an image
-	i, err := c.InspectImage(name)
+	i, err := dockerClient.InspectImage(name)
 	switch err {
 	case docker.ErrNoSuchImage:
 		// pull stress image
-		err = c.PullImage(docker.PullImageOptions{
+		err = dockerClient.PullImage(docker.PullImageOptions{
 			Repository: "alpine",
 			Tag:        "latest",
 		}, docker.AuthConfiguration{})
 		ok(err)
-		i, err = c.InspectImage("alpine")
+		i, err = dockerClient.InspectImage("alpine")
 		ok(err)
 	default:
 		warn(err)
@@ -160,7 +160,7 @@ func create(name, image, cmd string) string {
 	cmds := strings.Split(cmd, " ")
 	config := &docker.Config{Cmd: cmds, Image: image, NetworkDisabled: true}
 	cc := docker.CreateContainerOptions{Name: name, Config: config}
-	cont, err := c.CreateContainer(cc)
+	cont, err := dockerClient.CreateContainer(cc)
 	if IGNORE_CONFLICT && err == docker.ErrContainerAlreadyExists {
 		log.Println("create ignored - already exists!")
 		return ""
@@ -172,7 +172,7 @@ func create(name, image, cmd string) string {
 
 func start(id string) {
 	hc := &docker.HostConfig{}
-	err := c.StartContainer(id, hc)
+	err := dockerClient.StartContainer(id, hc)
 	ok(err)
 }
 

@@ -3,18 +3,17 @@ package main
 import (
 	"flag"
 	"log"
-	"net/url"
 	"strings"
 	"sync"
 	"time"
 
 	docker "github.com/fsouza/go-dockerclient"
-	"github.com/ppalucki/dockerstress/influx"
 )
 
 var (
-	// DOCKER_URL     = "http://127.0.0.1:8080"
-	DOCKER_URL     = "unix:///var/run/docker.sock"
+	DOCKER_URL = "http://127.0.0.1:8080"
+	// DOCKER_URL     = "unix:///var/run/docker.sock" // panic: [main.create:168] Post http://unix.sock/containers/create?name=tn-1452521422-105: dial unix /var/run/docker.sock: connect: resource temporarily unavailable // unix
+
 	DOCKER_LOG     = "/var/log/docker.log"
 	DOCKER_PIDFILE = "/var/run/docker.pid"
 	// INFLUX          = "http://127.0.0.1:8086"
@@ -26,21 +25,21 @@ var (
 	IMAGE           = "alpine"
 	CMD             = "sleep 8640000"
 	REPORT          = time.Duration(1 * time.Second)
-	STORE           = time.Duration(1 * time.Second)
 	SLEEP           = time.Duration(1 * time.Second)
 
-	c    *docker.Client
-	quit chan struct{}
+	dockerClient *docker.Client
+	wg           sync.WaitGroup
+	quit         chan struct{} = make(chan struct{})
 )
 
 func initDocker() {
 	// connect docker
 	// c, err := docker.NewClientFromEnv()
 	var err error
-	c, err = docker.NewClient(DOCKER_URL)
+	dockerClient, err = docker.NewClient(DOCKER_URL)
 	warn(err)
 	//  check connection
-	err = c.Ping()
+	err = dockerClient.Ping()
 	warn(err)
 }
 
@@ -48,9 +47,7 @@ func initDocker() {
 //   main  //
 // //////////
 
-func main() {
-
-	quit = make(chan struct{})
+func init() {
 
 	// test specific
 	flag.BoolVar(&IGNORE_CONFLICT, "ignore", IGNORE_CONFLICT, "ignore conflicts name when creating container")
@@ -67,34 +64,34 @@ func main() {
 	flag.StringVar(&INFLUX, "influx", INFLUX, "influx url")
 
 	// intervals
-	flag.DurationVar(&REPORT, "report", REPORT, "report interval")
-	flag.DurationVar(&STORE, "store", STORE, "store interval")
+	flag.DurationVar(&REPORT, "report", REPORT, "store interval")
 	flag.DurationVar(&SLEEP, "sleep", SLEEP, "sleep interval")
 
-	// parse params
 	flag.Parse()
+}
 
-	influx.New()
+func main() {
+
+	// parse params
 	initDocker()
 
 	cmds := map[string]func(){
-		// store
+		// service types
 		"sched":    storeSched,
 		"events":   storeEvents,
 		"proc":     storeProc,
 		"statuses": storeStatuses,
 		"info":     storeInfo,
 
-		"rmall":          rmAll,
-		"killall":        killAll,
-		"printInfo":      printInfo,
-		"pull":           pullIMAGE,
-		"t1":             t1,
-		"tn":             tn,
-		"tb":             tb,
-		"tnb":            tnb,
-		"reportStatuses": reportStatuses,
-		"printStatuses":  printStatuses,
+		// command (blocking)
+		"rmall":     rmAll,
+		"killall":   killAll,
+		"printInfo": printInfo,
+		"pull":      pullIMAGE,
+		"t1":        t1,
+		"tn":        tn,
+		"tb":        tb,
+		"tnb":       tnb,
 		"getall": func() {
 			for _, id := range getAllIds(true) {
 				println(id)
@@ -102,17 +99,6 @@ func main() {
 		},
 		"sleep": func() {
 			time.Sleep(SLEEP)
-		},
-		"save": func() {
-			u, err := url.Parse(INFLUX)
-			ok(err)
-			if u.Scheme == "file" {
-				err := influx.SaveFile(u.Host)
-				ok(err)
-			} else {
-				err := influx.SaveInflux(INFLUX, "docker")
-				ok(err)
-			}
 		},
 	}
 
@@ -130,7 +116,7 @@ func main() {
 	}
 
 	// fire
-	wg := sync.WaitGroup{}
+	store("logs", nil, map[string]interface{}{"message": "started"})
 	for _, cmd := range flag.Args() {
 		wg.Add(1)
 		f := func(cmd string) {
@@ -139,6 +125,8 @@ func main() {
 		}
 		f(cmd)
 	}
+	store("logs", nil, map[string]interface{}{"message": "done"})
 	close(quit)
 	wg.Wait()
+
 }
