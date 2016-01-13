@@ -28,9 +28,11 @@ func ok(err error) {
 	}
 }
 
-func warn(err error) {
+func warn(err error) bool {
 	if err != nil {
 		msg := where(err)
 		log.Printf("WARN: " + msg)
+		return true
 	}
+	return false
 }

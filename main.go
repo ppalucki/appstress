@@ -26,6 +26,7 @@ var (
 	CMD             = "sleep 8640000"
 	REPORT          = time.Duration(1 * time.Second)
 	SLEEP           = time.Duration(1 * time.Second)
+	PPROF_SECONDS   = time.Duration(30 * time.Second)
 
 	dockerClient *docker.Client
 	wg           sync.WaitGroup
@@ -66,6 +67,7 @@ func init() {
 	// intervals
 	flag.DurationVar(&REPORT, "report", REPORT, "store interval")
 	flag.DurationVar(&SLEEP, "sleep", SLEEP, "sleep interval")
+	flag.DurationVar(&PPROF_SECONDS, "pprof", PPROF_SECONDS, "sleep interval")
 
 	flag.Parse()
 }
@@ -99,6 +101,22 @@ func main() {
 		},
 		"sleep": func() {
 			time.Sleep(SLEEP)
+		},
+		"pprof": func() {
+			go func() {
+				for {
+					getProfile(DOCKER_URL)
+				}
+			}()
+
+		},
+		"trace": func() {
+			go func() {
+				for {
+					getTrace(DOCKER_URL)
+				}
+			}()
+
 		},
 	}
 

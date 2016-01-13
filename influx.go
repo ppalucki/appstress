@@ -38,8 +38,7 @@ func openInflux() io.Writer {
 			ok(err)
 
 			resp, err := client.Do(req)
-			warn(err)
-			if err != nil && resp != nil {
+			if warn(err) && resp != nil {
 				b, err := ioutil.ReadAll(resp.Body)
 				if err != nil {
 					log.Printf("influx resposone warn: %s\n", b)
