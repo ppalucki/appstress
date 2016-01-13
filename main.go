@@ -10,26 +10,88 @@ import (
 	docker "github.com/fsouza/go-dockerclient"
 )
 
-var (
+const (
+	INFLUX_URL = "file://influx.data"
+	// INFLUX_URL = "http://localhost:8086/write?db=docker"
 	DOCKER_URL = "http://127.0.0.1:8080"
 	// DOCKER_URL     = "unix:///var/run/docker.sock" // panic: [main.create:168] Post http://unix.sock/containers/create?name=tn-1452521422-105: dial unix /var/run/docker.sock: connect: resource temporarily unavailable // unix
+)
 
-	DOCKER_LOG      = "/var/log/docker.log"
-	DOCKER_PIDFILE  = "/var/run/docker.pid"
-	N               = 100  // in parallel
-	B               = 1000 // how many in one batch
-	IGNORE_CONFLICT = true
-	NAME            = "docker" // measurment name
-	IMAGE           = "alpine"
-	CMD             = "sleep 8640000"
-	REPORT          = time.Duration(1 * time.Second)
-	SLEEP           = time.Duration(1 * time.Second)
-	PPROF_SECONDS   = time.Duration(30 * time.Second)
+var (
+	dockerUrl = flag.String("dockerUrl", DOCKER_URL, "docker url")
 
+	infoOn  = flag.Bool("info", true, "info on")
+	infoInt = flag.Duration("infoInt", 1*time.Second, "status interval")
+
+	statusOn  = flag.Bool("status", true, "status on")
+	statusInt = flag.Duration("statusInt", 1*time.Second, "status interval")
+
+	eventsOn = flag.Bool("events", false, "event on")
+
+	procOn  = flag.Bool("proc", false, "proc on")
+	procPid = flag.String("procPid", "/var/run/docker.pid", "location of docker pid file")
+	procInt = flag.Duration("procInt", 1*time.Second, "proc interval")
+
+	schedOn  = flag.Bool("sched", false, "sched on")
+	schedLog = flag.String("schedLog", "/var/log/docker.log", "location of docker.log")
+
+	profileOn  = flag.Bool("profile", false, "profile on")
+	profileDur = flag.Duration("profileDur", 10*time.Second, "profile duration")
+	profileInt = flag.Duration("profileInt", 1*time.Second, "profile interval")
+
+	traceOn   = flag.Bool("trace", false, "tracing on")
+	traceDur  = flag.Duration("traceDur", 10*time.Second, "tracing duration")
+	traceInt  = flag.Duration("traceInt", 1*time.Second, "tracing interval")
+	influxUrl = flag.String("influx", "file://influx.data", "where to store influx data")
+
+	// test specific
+	N = flag.Int("n", 100, "how many containers(tn) or batches (tnb) to start in parallel")
+	B = flag.Int("b", 1000, "how many containers to start in on batch")
+
+	NAME  = flag.String("name", "docker", "name tag")
+	IMAGE = flag.String("image", "alpine", "docker image")
+	CMD   = flag.String("cmd", "sleep 8640000", "docker cmd")
+
+	// runtime vars
 	dockerClient *docker.Client
 	wg           sync.WaitGroup
 	quit         chan struct{} = make(chan struct{})
 )
+
+// // ////////
+//   main  //
+// //////////
+
+func init() {
+	flag.Parse()
+
+	initDocker()
+	initInflux(*influxUrl)
+
+	if *infoOn {
+		storeInfo(*infoInt)
+	}
+
+	if *statusOn {
+		storeStatuses(*statusInt)
+	}
+
+	if *eventsOn {
+		storeEvents()
+	}
+
+	if *procOn {
+		storeProc(*procPid, *procInt)
+	}
+
+	if *schedOn {
+		sched(nil, *schedLog)
+	}
+
+	if *profileOn {
+		storeProfile(*dockerUrl, *profileDur, *profileInt)
+	}
+}
 
 func initDocker() {
 	// connect docker
@@ -42,31 +104,8 @@ func initDocker() {
 	warn(err)
 }
 
-// // ////////
-//   main  //
-// //////////
-
-func init() {
-
-	// test specific
-	flag.BoolVar(&IGNORE_CONFLICT, "ignore", IGNORE_CONFLICT, "ignore conflicts name when creating container")
-	flag.IntVar(&N, "n", N, "how many containers to start in parallel")
-	flag.IntVar(&B, "b", B, "how many containers to start in on batch")
-
-	// docker locations/pid/logs
-	flag.StringVar(&DOCKER_URL, "docker_url", DOCKER_URL, "docker url")
-	flag.StringVar(&DOCKER_LOG, "docker_log", DOCKER_LOG, "docker log file path with schedule details")
-	flag.StringVar(&DOCKER_PIDFILE, "docker_pidfile", DOCKER_PIDFILE, "docker pid file")
-
-	// influx db name and location (file/http)
-	flag.StringVar(&NAME, "name", NAME, "name of experiment (measurment and file name)")
-
-	// intervals
-	flag.DurationVar(&REPORT, "report", REPORT, "store interval")
-	flag.DurationVar(&SLEEP, "sleep", SLEEP, "sleep interval")
-	flag.DurationVar(&PPROF_SECONDS, "pprof", PPROF_SECONDS, "sleep interval")
-
-	flag.Parse()
+func sleep() {
+	time.Sleep(time.Second)
 }
 
 func main() {
@@ -75,49 +114,15 @@ func main() {
 	initDocker()
 
 	cmds := map[string]func(){
-		// service types
-		"sched":    storeSched,
-		"events":   storeEvents,
-		"proc":     storeProc,
-		"statuses": storeStatuses,
-		"info":     storeInfo,
-
 		// command (blocking)
-		"rmall":     rmAll,
-		"killall":   killAll,
-		"printInfo": printInfo,
-		"pull":      pullIMAGE,
-		"t1":        t1,
-		"tn":        tn,
-		"tb":        tb,
-		"tnb":       tnb,
-		"getall": func() {
-			for _, id := range getAllIds(true) {
-				println(id)
-			}
-		},
-		"sleep": func() {
-			time.Sleep(SLEEP)
-		},
-		"pprof": func() {
-			go func() {
-				for {
-					getProfile(DOCKER_URL)
-					time.Sleep(REPORT)
-				}
-			}()
-
-		},
-		"trace": func() {
-			go func() {
-				for {
-					getTrace(DOCKER_URL)
-
-					time.Sleep(REPORT)
-				}
-			}()
-
-		},
+		"rmall":   rmAll,
+		"killall": killAll,
+		"pull":    pullIMAGE,
+		"t1":      t1,
+		"tn":      tn,
+		"tb":      tb,
+		"tnb":     tnb,
+		"sleep":   sleep,
 	}
 
 	// precheck

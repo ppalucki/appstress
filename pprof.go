@@ -2,10 +2,7 @@ package main
 
 import (
 	"fmt"
-	"io"
-	"io/ioutil"
 	"log"
-	"net/http"
 	"os"
 	"os/exec"
 	"path"
@@ -29,32 +26,29 @@ func init() {
 	err := os.MkdirAll(absDir, 0777)
 	ok(err)
 }
-func getHeap(appUrl string) {
-	getPprof(appUrl, "heap")
-}
 
-func getProfile(appUrl string) {
-	getPprof(appUrl, "profile")
-}
-
-func getTrace(appUrl string) {
-	resp, err := http.Get(appUrl + "/debug/pprof/trace?seconds=" + strconv.Itoa(int(PPROF_SECONDS.Seconds())))
-	if warn(err) && resp != nil {
-		log.Println("trace download error:")
+func storeProfile(appUrl string, duration, interval time.Duration) {
+	for {
+		t := time.NewTicker(interval)
+		for range t.C {
+			getProfile(appUrl, duration)
+			getHeap(appUrl, duration)
+		}
 	}
-	f, err := ioutil.TempFile(absDir, "trace-"+NAME+"-"+time.Now().Format(time.RFC3339)+"-")
-	ok(err)
-	defer f.Close()
-
-	n, err := io.Copy(f, resp.Body)
-	ok(err)
-	log.Println("trace written:", n, f.Name())
 }
 
-func getPprof(appUrl, kind string) {
+func getProfile(appUrl string, duration time.Duration) {
+	getPprof(appUrl, "profile", duration)
+}
+
+func getHeap(appUrl string, duration time.Duration) {
+	getPprof(appUrl, "heap", duration)
+}
+
+func getPprof(appUrl, kind string, duration time.Duration) {
 
 	profileUrl := appUrl + "/debug/pprof/" + kind
-	c := exec.Command(pprofBin, "-seconds", strconv.Itoa(int(PPROF_SECONDS.Seconds())), profileUrl)
+	c := exec.Command(pprofBin, "-seconds", strconv.Itoa(int(duration)), profileUrl)
 	// c := exec.Command("env")
 
 	c.Env = []string{fmt.Sprintf("PPROF_TMPDIR=%s", absDir)}

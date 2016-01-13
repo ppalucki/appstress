@@ -9,10 +9,6 @@ import (
 	"github.com/hpcloud/tail"
 )
 
-func storeSched() {
-	go sched(nil, DOCKER_LOG)
-}
-
 func sched(tags map[string]string, dockerLog string) {
 
 	if tags == nil {

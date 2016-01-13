@@ -21,17 +21,23 @@ func toFields(s map[string]int) map[string]interface{} {
 	for k, v := range data {
 		fields[k] = v
 	}
+	if len(fields) == 0 {
+		fields["up"] = 0
+		fields["exited"] = 0
+	}
 	return fields
 }
 
-func storeStatuses() {
+func writeStatuses() {
+	fields := toFields(statuses(true))
+	store("statuses", nil, fields)
+}
+
+func storeStatuses(interval time.Duration) {
 	go func() {
-		fields := toFields(statuses(true))
-		if len(fields) == 0 {
-			fields["up"] = 0
-			fields["exited"] = 0
+		t := time.NewTicker(interval)
+		for range t.C {
+			writeStatuses()
 		}
-		store("statuses", nil, fields)
-		time.Sleep(REPORT * time.Second)
 	}()
 }

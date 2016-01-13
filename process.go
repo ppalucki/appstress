@@ -10,9 +10,9 @@ import (
 	"github.com/shirou/gopsutil/process"
 )
 
-func loadPid() (int32, error) {
+func loadPid(filename string) (int32, error) {
 
-	pidfile, err := os.Open(DOCKER_PIDFILE)
+	pidfile, err := os.Open(filename)
 	if err != nil {
 		return 0, err
 	}
@@ -49,20 +49,19 @@ func loadPid() (int32, error) {
 
 // dockerData gather date from docker daemon directly (using DOCKER_HOST)
 // and from proc/DOCKER_PID/status and publish those to conn
-func storeProc() {
+func storeProc(pidfile string, interval time.Duration) {
 	go func() {
-		for {
-			pid, err := loadPid()
+		t := time.NewTicker(interval)
+		for range t.C {
+			pid, err := loadPid(pidfile)
 			if err != nil {
 				warn(err)
-				time.Sleep(REPORT)
 				continue
 			}
 
 			p, err := process.NewProcess(int32(pid))
 			warn(err)
 			if err != nil {
-				time.Sleep(REPORT)
 				continue
 			}
 
@@ -70,20 +69,16 @@ func storeProc() {
 			threads, err := p.NumThreads()
 			warn(err)
 			if err != nil {
-				time.Sleep(REPORT)
 				continue
 			}
 
 			mi, err := p.MemoryInfo()
 			warn(err)
 			if err != nil {
-				time.Sleep(REPORT)
 				continue
 			}
 
 			store("process", nil, map[string]interface{}{"threads": threads, "vmsize": int(mi.VMS), "rss": int(mi.RSS)})
-
-			time.Sleep(REPORT)
 		}
 	}()
 }

@@ -161,7 +161,7 @@ func create(name, image, cmd string) string {
 	config := &docker.Config{Cmd: cmds, Image: image, NetworkDisabled: true}
 	cc := docker.CreateContainerOptions{Name: name, Config: config}
 	cont, err := dockerClient.CreateContainer(cc)
-	if IGNORE_CONFLICT && err == docker.ErrContainerAlreadyExists {
+	if err == docker.ErrContainerAlreadyExists {
 		log.Println("create ignored - already exists!")
 		return ""
 	} else {

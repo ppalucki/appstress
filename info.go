@@ -6,18 +6,20 @@ import (
 	"time"
 )
 
-func storeInfo() {
+func storeInfo(interval time.Duration) {
 	for {
 		i := info()
 		if i != nil {
-			store("info", nil, map[string]interface{}{"containers": i["Containers"], "ngoroutines": i["NGoroutines"]})
+			// TODO: fds/threads
+			d := map[string]interface{}{"containers": i["Containers"], "ngoroutines": i["NGoroutines"]}
+			log.Println("info = ", d)
+			store("info", nil, d)
 		}
-		time.Sleep(REPORT)
+		time.Sleep(interval)
 	}
 }
 
-func printInfo() {
-	i := info()
+func dumpInfo(i map[string]string) {
 	mb, err := json.MarshalIndent(i, "", "  ")
 	ok(err)
 	log.Println(string(mb))
