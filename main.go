@@ -14,10 +14,8 @@ var (
 	DOCKER_URL = "http://127.0.0.1:8080"
 	// DOCKER_URL     = "unix:///var/run/docker.sock" // panic: [main.create:168] Post http://unix.sock/containers/create?name=tn-1452521422-105: dial unix /var/run/docker.sock: connect: resource temporarily unavailable // unix
 
-	DOCKER_LOG     = "/var/log/docker.log"
-	DOCKER_PIDFILE = "/var/run/docker.pid"
-	// INFLUX          = "http://127.0.0.1:8086"
-	INFLUX          = "file://influx.data"
+	DOCKER_LOG      = "/var/log/docker.log"
+	DOCKER_PIDFILE  = "/var/run/docker.pid"
 	N               = 100  // in parallel
 	B               = 1000 // how many in one batch
 	IGNORE_CONFLICT = true
@@ -62,7 +60,6 @@ func init() {
 
 	// influx db name and location (file/http)
 	flag.StringVar(&NAME, "name", NAME, "name of experiment (measurment and file name)")
-	flag.StringVar(&INFLUX, "influx", INFLUX, "influx url")
 
 	// intervals
 	flag.DurationVar(&REPORT, "report", REPORT, "store interval")
@@ -106,6 +103,7 @@ func main() {
 			go func() {
 				for {
 					getProfile(DOCKER_URL)
+					time.Sleep(REPORT)
 				}
 			}()
 
@@ -114,6 +112,8 @@ func main() {
 			go func() {
 				for {
 					getTrace(DOCKER_URL)
+
+					time.Sleep(REPORT)
 				}
 			}()
 

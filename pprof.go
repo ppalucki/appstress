@@ -60,8 +60,7 @@ func getPprof(appUrl, kind string) {
 	c.Env = []string{fmt.Sprintf("PPROF_TMPDIR=%s", absDir)}
 	b, err := c.CombinedOutput()
 	if !warn(err) {
-		fmt.Printf("b = %s\n", b)
+		log.Printf("pprof: grabed profile output = %s", b)
 	}
-	log.Println("Done!")
-
+	log.Println("pprof: done")
 }

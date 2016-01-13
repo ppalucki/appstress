@@ -20,7 +20,7 @@ var (
 // openFile writer which  stores (appends) data to influx.data file
 func openFile() io.Writer {
 	const filename = "influx.data"
-	writer, err := os.OpenFile(filename, os.O_RDWR|os.O_APPEND, 0666)
+	writer, err := os.OpenFile(filename, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0666)
 	ok(err)
 	return writer
 }
@@ -55,7 +55,10 @@ func openInflux() io.Writer {
 func init() {
 	wg.Add(1)
 	points = make(chan string)
-	writer := io.MultiWriter(openInflux(), openFile())
+	writer := io.MultiWriter(
+		// openInflux(),
+		openFile(),
+	)
 	go func() {
 		for {
 			select {
