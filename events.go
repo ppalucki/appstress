@@ -10,7 +10,7 @@ func storeEvents() {
 	go func() {
 		for {
 			e := <-listener
-			store("events", map[string]string{}, map[string]interface{}{"value": 1, "kind": e.Status})
+			store("events", nil, map[string]interface{}{"value": 1, "kind": e.Status})
 		}
 	}()
 }

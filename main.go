@@ -128,5 +128,4 @@ func main() {
 	store("logs", nil, map[string]interface{}{"message": "done"})
 	close(quit)
 	wg.Wait()
-
 }

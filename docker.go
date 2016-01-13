@@ -76,7 +76,7 @@ func rm(id string) {
 		ID:    id,
 	}
 	err := dockerClient.RemoveContainer(opts)
-	ok(err)
+	warn(err)
 }
 
 // b number of containers in batch running in n goroutines
