@@ -6,8 +6,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	docker "github.com/fsouza/go-dockerclient"
 )
 
 const (
@@ -20,10 +18,12 @@ const (
 var (
 	dockerUrl = flag.String("dockerUrl", DOCKER_URL, "docker url")
 
-	infoOn  = flag.Bool("info", true, "info on")
+	allOn = flag.Bool("all", false, "all on")
+
+	infoOn  = flag.Bool("info", false, "info on")
 	infoInt = flag.Duration("infoInt", 1*time.Second, "status interval")
 
-	statusOn  = flag.Bool("status", true, "status on")
+	statusOn  = flag.Bool("status", false, "status on")
 	statusInt = flag.Duration("statusInt", 1*time.Second, "status interval")
 
 	eventsOn = flag.Bool("events", false, "event on")
@@ -53,23 +53,56 @@ var (
 	CMD   = flag.String("cmd", "sleep 8640000", "docker cmd")
 
 	// runtime vars
-	dockerClient *docker.Client
-	wg           sync.WaitGroup
-	quit         chan struct{} = make(chan struct{})
+	wg   sync.WaitGroup
+	quit chan struct{} = make(chan struct{})
 )
 
 // // ////////
 //   main  //
 // //////////
 
-func init() {
+func sleep() {
+	time.Sleep(time.Second)
+}
+
+func saveTraces(appUrl string, duration, interval time.Duration) {
+}
+
+// handle waitGroup and quit channel
+func loop(interval time.Duration, f func()) {
+	go func() {
+		wg.Add(1)
+		defer wg.Done()
+		t := time.NewTicker(interval)
+		for {
+			select {
+			case <-t.C:
+				f()
+			case <-quit:
+				return
+			}
+		}
+	}()
+}
+
+func main() {
+
 	flag.Parse()
 
 	initDocker()
 	initInflux(*influxUrl)
 
+	all := []*bool{infoOn, statusOn, eventsOn, procOn, schedOn}
+	if *allOn {
+		for _, v := range all {
+			*v = true
+		}
+	}
+
 	if *infoOn {
-		storeInfo(*infoInt)
+		loop(*infoInt, func() {
+			storeInfo(*infoInt)
+		})
 	}
 
 	if *statusOn {
@@ -85,44 +118,35 @@ func init() {
 	}
 
 	if *schedOn {
-		sched(nil, *schedLog)
+		storeSched(*schedLog)
 	}
 
 	if *profileOn {
-		storeProfile(*dockerUrl, *profileDur, *profileInt)
+		initProfiles()
+		loop(*profileInt, func() {
+			getProfile(*dockerUrl, *profileDur)
+			getHeap(*dockerUrl, *profileDur)
+		})
 	}
-}
 
-func initDocker() {
-	// connect docker
-	// c, err := docker.NewClientFromEnv()
-	var err error
-	dockerClient, err = docker.NewClient(DOCKER_URL)
-	warn(err)
-	//  check connection
-	err = dockerClient.Ping()
-	warn(err)
-}
-
-func sleep() {
-	time.Sleep(time.Second)
-}
-
-func main() {
-
-	// parse params
-	initDocker()
+	if *traceOn {
+		loop(*traceInt, func() {
+			getTrace(*dockerUrl, *traceDur)
+		})
+	}
 
 	cmds := map[string]func(){
 		// command (blocking)
-		"rmall":   rmAll,
-		"killall": killAll,
-		"pull":    pullIMAGE,
-		"t1":      t1,
-		"tn":      tn,
-		"tb":      tb,
-		"tnb":     tnb,
-		"sleep":   sleep,
+		"rmall":        rmAll,
+		"killall":      killAll,
+		"pull":         pullIMAGE,
+		"t1":           t1,
+		"tn":           tn,
+		"tb":           tb,
+		"tnb":          tnb,
+		"sleep":        sleep,
+		"dumpInfo":     dumpInfo,
+		"dumpStatuses": dumpStatuses,
 	}
 
 	// precheck
@@ -139,16 +163,17 @@ func main() {
 	}
 
 	// fire
-	store("logs", nil, map[string]interface{}{"message": "started"})
+	storeLog("started")
 	for _, cmd := range flag.Args() {
 		wg.Add(1)
 		f := func(cmd string) {
+			storeLog("cmd", cmd)
 			cmds[cmd]()
 			wg.Done()
 		}
 		f(cmd)
 	}
-	store("logs", nil, map[string]interface{}{"message": "done"})
+	storeLog("done")
 	close(quit)
 	wg.Wait()
 }

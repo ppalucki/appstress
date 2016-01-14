@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/influxdb/influxdb/models"
@@ -95,4 +96,8 @@ func store(name string, tags map[string]string, fields map[string]interface{}) {
 	}
 
 	points <- p.String() + "\n"
+}
+
+func storeLog(values ...string) {
+	store("logs", nil, map[string]interface{}{"message": strings.Join(values, " ")})
 }

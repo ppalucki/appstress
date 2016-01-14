@@ -50,35 +50,30 @@ func loadPid(filename string) (int32, error) {
 // dockerData gather date from docker daemon directly (using DOCKER_HOST)
 // and from proc/DOCKER_PID/status and publish those to conn
 func storeProc(pidfile string, interval time.Duration) {
-	go func() {
-		t := time.NewTicker(interval)
-		for range t.C {
-			pid, err := loadPid(pidfile)
-			if err != nil {
-				warn(err)
-				continue
-			}
+	pid, err := loadPid(pidfile)
+	if err != nil {
+		warn(err)
+		return
+	}
 
-			p, err := process.NewProcess(int32(pid))
-			warn(err)
-			if err != nil {
-				continue
-			}
+	p, err := process.NewProcess(int32(pid))
+	warn(err)
+	if err != nil {
+		return
+	}
 
-			// threads
-			threads, err := p.NumThreads()
-			warn(err)
-			if err != nil {
-				continue
-			}
+	// threads
+	threads, err := p.NumThreads()
+	warn(err)
+	if err != nil {
+		return
+	}
 
-			mi, err := p.MemoryInfo()
-			warn(err)
-			if err != nil {
-				continue
-			}
+	mi, err := p.MemoryInfo()
+	warn(err)
+	if err != nil {
+		return
+	}
 
-			store("process", nil, map[string]interface{}{"threads": threads, "vmsize": int(mi.VMS), "rss": int(mi.RSS)})
-		}
-	}()
+	store("process", nil, map[string]interface{}{"threads": threads, "vmsize": int(mi.VMS), "rss": int(mi.RSS)})
 }

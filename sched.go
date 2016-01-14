@@ -9,11 +9,9 @@ import (
 	"github.com/hpcloud/tail"
 )
 
-func sched(tags map[string]string, dockerLog string) {
+func storeSched(dockerLog string) {
 
-	if tags == nil {
-		tags = make(map[string]string)
-	}
+	tags := make(map[string]string)
 
 	t, err := tail.TailFile(dockerLog, tail.Config{Follow: true, Location: &tail.SeekInfo{Offset: 0, Whence: 2}})
 	ok(err)

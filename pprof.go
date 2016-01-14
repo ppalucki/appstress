@@ -20,21 +20,11 @@ var (
 	absDir string
 )
 
-func init() {
+func initProfiles() {
 	wd, _ := os.Getwd()
 	absDir = path.Join(wd, pprofTmpdir)
 	err := os.MkdirAll(absDir, 0777)
 	ok(err)
-}
-
-func storeProfile(appUrl string, duration, interval time.Duration) {
-	for {
-		t := time.NewTicker(interval)
-		for range t.C {
-			getProfile(appUrl, duration)
-			getHeap(appUrl, duration)
-		}
-	}
 }
 
 func getProfile(appUrl string, duration time.Duration) {
