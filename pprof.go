@@ -1,0 +1,60 @@
+package main
+
+import (
+	"fmt"
+	"log"
+	"os"
+	"os/exec"
+	"path"
+	"strconv"
+	"time"
+)
+
+// go tool -n pprof
+const (
+	pprofBin    = "./pprof"
+	pprofTmpdir = "pprof_tmpdir"
+)
+
+var (
+	absDir string
+)
+
+func init() {
+	wd, _ := os.Getwd()
+	absDir = path.Join(wd, pprofTmpdir)
+	err := os.MkdirAll(absDir, 0777)
+	ok(err)
+}
+
+func storeProfile(appUrl string, duration, interval time.Duration) {
+	for {
+		t := time.NewTicker(interval)
+		for range t.C {
+			getProfile(appUrl, duration)
+			getHeap(appUrl, duration)
+		}
+	}
+}
+
+func getProfile(appUrl string, duration time.Duration) {
+	getPprof(appUrl, "profile", duration)
+}
+
+func getHeap(appUrl string, duration time.Duration) {
+	getPprof(appUrl, "heap", duration)
+}
+
+func getPprof(appUrl, kind string, duration time.Duration) {
+
+	profileUrl := appUrl + "/debug/pprof/" + kind
+	c := exec.Command(pprofBin, "-seconds", strconv.Itoa(int(duration)), profileUrl)
+	// c := exec.Command("env")
+
+	c.Env = []string{fmt.Sprintf("PPROF_TMPDIR=%s", absDir)}
+	b, err := c.CombinedOutput()
+	if !warn(err) {
+		log.Printf("pprof: grabed profile output = %s", b)
+	}
+	log.Println("pprof: done")
+}
