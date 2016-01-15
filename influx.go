@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
@@ -102,4 +103,16 @@ func storeLog(values ...string) {
 	msg := strings.Join(values, " ")
 	log.Println(msg)
 	store("logs", nil, map[string]interface{}{"message": msg})
+}
+
+// influxFlush copies reads data from reader into influx given by
+// uses store function (line by line)
+func feedInflux(srcFilename, dstUrl string) {
+	src, err := os.Open(srcFilename)
+	ok(err)
+
+	dst := openInflux(dstUrl)
+	n, err := io.Copy(dst, src)
+	ok(err)
+	fmt.Printf("copied %d bytes from %q to %q\n", n, srcFilename, dstUrl)
 }

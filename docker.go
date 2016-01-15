@@ -116,7 +116,15 @@ func start(id string) {
 // possible states are "up", "restarting", "removal", "dead", "created", "exited")
 // we map this to StateString
 func statuses(all bool) map[string]int {
-	s := make(map[string]int)
+	s := map[string]int{
+		"paused":     0,
+		"restarting": 0,
+		"up":         0,
+		"removal":    0,
+		"dead":       0,
+		"created":    0,
+		"exited":     0,
+	}
 	for _, c := range getAll(all) {
 		var state string
 		switch {

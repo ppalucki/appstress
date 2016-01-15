@@ -9,7 +9,8 @@ import (
 )
 
 const (
-	INFLUX_URL = "file://influx.data"
+	INFLUX_FILE = "influx.data"
+	INFLUX_URL  = "file://" + INFLUX_FILE
 	// INFLUX_URL = "http://localhost:8086/write?db=docker"
 	DOCKER_URL = "http://127.0.0.1:8080"
 	// DOCKER_URL     = "unix:///var/run/docker.sock" // panic: [main.create:168] Post http://unix.sock/containers/create?name=tn-1452521422-105: dial unix /var/run/docker.sock: connect: resource temporarily unavailable // unix
@@ -42,7 +43,10 @@ var (
 	traceOn   = flag.Bool("trace", false, "tracing on")
 	traceDur  = flag.Duration("traceDur", 10*time.Second, "tracing duration")
 	traceInt  = flag.Duration("traceInt", 1*time.Second, "tracing interval")
-	influxUrl = flag.String("influx", "file://influx.data", "where to store influx data")
+	influxUrl = flag.String("influx", INFLUX_URL, "where to store influx data")
+
+	// feedInflux
+	feedInfluxSrc = flag.String("feedInflux", "", "onetime action that copies data from file to influxUrl")
 
 	// test specific
 	N = flag.Int("n", 100, "how many containers(tn) or batches (tnb) to start in parallel")
@@ -89,8 +93,15 @@ func main() {
 
 	flag.Parse()
 
-	initDocker()
 	initInflux(*influxUrl)
+
+	// just copy influxFile to influxUrl
+	if *feedInfluxSrc != "" {
+		feedInflux(*feedInfluxSrc, *influxUrl)
+		return
+	}
+
+	initDocker()
 
 	all := []*bool{infoOn,
 		statusOn,
