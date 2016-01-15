@@ -32,12 +32,13 @@ func openFile(filename string) io.Writer {
 func openInflux(url string) io.Writer {
 	pr, pw := io.Pipe()
 	scanner := bufio.NewScanner(pr)
+	//scanner.Split(MultiScanLines) // TODO: fix me
 	client := http.Client{}
 	go func() {
 		for scanner.Scan() {
 			wg.Add(1)
 			body := bytes.NewBufferString(scanner.Text())
-			log.Print("INFLUX: ", body)
+			// log.Print("INFLUX: ", body)
 			req, err := http.NewRequest("POST", url, body)
 			ok(err)
 
@@ -108,6 +109,12 @@ func storeLog(values ...string) {
 // influxFlush copies reads data from reader into influx given by
 // uses store function (line by line)
 func feedInflux(srcFilename, dstUrl string) {
+
+	if strings.Contains(dstUrl, srcFilename) {
+		fmt.Printf("please specify other destination through influxUrl=%q than src file=%q\n", dstUrl, srcFilename)
+		os.Exit(1)
+	}
+
 	src, err := os.Open(srcFilename)
 	ok(err)
 
