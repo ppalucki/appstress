@@ -68,7 +68,7 @@ func sleep() {
 func saveTraces(appUrl string, duration, interval time.Duration) {
 }
 
-// handle waitGroup and quit channel
+// loop funcation and handle waitGroup and quit channel
 func loop(interval time.Duration, f func()) {
 	go func() {
 		wg.Add(1)
@@ -92,7 +92,12 @@ func main() {
 	initDocker()
 	initInflux(*influxUrl)
 
-	all := []*bool{infoOn, statusOn, eventsOn, procOn, schedOn}
+	all := []*bool{infoOn,
+		statusOn,
+		eventsOn,
+		procOn,
+		schedOn,
+	}
 	if *allOn {
 		for _, v := range all {
 			*v = true
@@ -114,11 +119,13 @@ func main() {
 	}
 
 	if *procOn {
-		storeProc(*procPid, *procInt)
+		loop(*procInt, func() {
+			storeProc(*procPid, *procInt)
+		})
 	}
 
 	if *schedOn {
-		storeSched(*schedLog)
+		go storeSched(*schedLog)
 	}
 
 	if *profileOn {
@@ -167,8 +174,11 @@ func main() {
 	for _, cmd := range flag.Args() {
 		wg.Add(1)
 		f := func(cmd string) {
-			storeLog("cmd", cmd)
+			begin := time.Now()
+			storeLog("cmd start:", cmd)
 			cmds[cmd]()
+			duration := time.Since(begin)
+			storeLog("cmd done:", cmd, "(", duration.String(), ")")
 			wg.Done()
 		}
 		f(cmd)

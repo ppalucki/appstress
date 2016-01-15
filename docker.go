@@ -311,8 +311,9 @@ func storeStatuses(interval time.Duration) {
 	go func() {
 		t := time.NewTicker(interval)
 		for range t.C {
-			fields := statusesToFields(statuses(true))
-			store("statuses", nil, fields)
+			s := statuses(true)
+			store("statuses", nil, statusesToFields(s))
+			log.Println("statuses = ", s)
 		}
 	}()
 }
