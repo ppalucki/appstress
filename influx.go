@@ -16,6 +16,10 @@ import (
 	"github.com/influxdb/influxdb/models"
 )
 
+const (
+	influxBatchNoOfLines = 1000
+)
+
 var (
 	points chan string // communication channel for store function
 )
@@ -32,7 +36,7 @@ func openFile(filename string) io.Writer {
 func openInflux(url string) io.Writer {
 	pr, pw := io.Pipe()
 	scanner := bufio.NewScanner(pr)
-	//scanner.Split(MultiScanLines) // TODO: fix me
+	scanner.Split(multiScanLinesFactory(influxBatchNoOfLines))
 	client := http.Client{}
 	go func() {
 		for scanner.Scan() {

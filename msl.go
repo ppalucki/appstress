@@ -3,49 +3,35 @@ package main
 import (
 	"bufio"
 	"bytes"
-	"fmt"
-	"strings"
 )
 
-var tokens = []string{}
-
-const noOfLines = 3
-
-func MultiScanLines(data []byte, atEOF bool) (advance int, token []byte, err error) {
-	advance, token, err = bufio.ScanLines(data, atEOF)
-	if err != nil {
-		return advance, token, err
+func multiScanLinesFactory(noOfLines int) bufio.SplitFunc {
+	return func(data []byte, atEOF bool) (advance int, token []byte, err error) {
+		return multiScanLines(data, atEOF, noOfLines)
 	}
-	if token != nil {
-		tokens = append(tokens, string(token))
-	}
-
-	if len(tokens) > noOfLines {
-		token = []byte(strings.Join(tokens, "\n"))
-		tokens = []string{}
-	}
-	return advance, token, err
 }
 
-func testIt() {
-
-	data := bytes.NewBufferString(`aaa
-bbb
-ccc
-ddd
-eee
-fff
-ggg
-hhh
-iii
-`)
-	s := bufio.NewScanner(data)
-	s.Split(MultiScanLines)
-	// s.Split(bufio.ScanLines)
-	for s.Scan() {
-		println("--------------")
-		fmt.Printf("TEXT = %+v\n", s.Text())
+func multiScanLines(data []byte, atEOF bool, noOfLines int) (advance int, token []byte, err error) {
+	if atEOF && len(data) == 0 {
+		return 0, nil, nil
 	}
-	fmt.Printf("s.Eee = %+v\n", s.Err())
 
+	window := data[:]
+	var hit, pos int
+	for hit = 0; hit < noOfLines; hit++ {
+		pos = bytes.IndexByte(window, '\n')
+		if pos < 0 {
+			break
+		}
+		advance += pos + 1
+		window = data[advance:]
+	}
+	if hit == noOfLines {
+		return advance, data[0:advance], nil
+	}
+
+	if atEOF {
+		return len(data), data, nil
+	}
+	return 0, nil, nil
 }
