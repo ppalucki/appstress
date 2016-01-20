@@ -19,7 +19,7 @@ const (
 var (
 	dockerUrl = flag.String("dockerUrl", DOCKER_URL, "docker url")
 
-	allOn = flag.Bool("all", false, "all on")
+	allOn = flag.Bool("all", false, "all on (the same ass -status -events -proc -sched)")
 
 	infoOn  = flag.Bool("info", false, "info on")
 	infoInt = flag.Duration("infoInt", 1*time.Second, "status interval")
@@ -47,6 +47,7 @@ var (
 
 	// feedInflux
 	feedInfluxSrc = flag.String("feedInflux", "", "onetime action that copies data from file to influxUrl")
+	influxBatch   = flag.Int("feedLines", 500, "batch size")
 
 	// test specific
 	N = flag.Int("n", 100, "how many containers(tn) or batches (tnb) to start in parallel")
@@ -93,13 +94,13 @@ func main() {
 
 	flag.Parse()
 
-	initInflux(*influxUrl)
-
 	// just copy influxFile to influxUrl
 	if *feedInfluxSrc != "" {
 		feedInflux(*feedInfluxSrc, *influxUrl)
 		return
 	}
+
+	initInflux(*influxUrl)
 
 	initDocker()
 

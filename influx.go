@@ -16,10 +16,6 @@ import (
 	"github.com/influxdb/influxdb/models"
 )
 
-const (
-	influxBatchNoOfLines = 1000
-)
-
 var (
 	points chan string // communication channel for store function
 )
@@ -34,24 +30,27 @@ func openFile(filename string) io.Writer {
 
 // openInflux goroutine and returns writer
 func openInflux(url string) io.Writer {
+	log.Println("openInflux:", url)
 	pr, pw := io.Pipe()
 	scanner := bufio.NewScanner(pr)
-	scanner.Split(multiScanLinesFactory(influxBatchNoOfLines))
+	scanner.Split(multiScanLinesFactory(*influxBatch))
 	client := http.Client{}
 	go func() {
 		for scanner.Scan() {
 			wg.Add(1)
 			body := bytes.NewBufferString(scanner.Text())
-			// log.Print("INFLUX: ", body)
+			log.Println("influx push: ", body.Len())
 			req, err := http.NewRequest("POST", url, body)
 			ok(err)
 
 			resp, err := client.Do(req)
-			if warn(err) && resp != nil {
+			if (warn(err) && resp != nil) || resp.StatusCode != 204 {
 				b, err := ioutil.ReadAll(resp.Body)
 				if err != nil {
 					log.Printf("influx resposone warn: %s\n", b)
 				}
+
+				log.Fatalf("err: %q %q\n", resp.Status, string(b))
 			}
 			wg.Done()
 		}
