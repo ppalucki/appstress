@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/influxdb/influxdb/models"
+	"github.com/mitchellh/ioprogress"
 )
 
 var (
@@ -39,7 +40,7 @@ func openInflux(url string) io.Writer {
 		for scanner.Scan() {
 			wg.Add(1)
 			body := bytes.NewBufferString(scanner.Text())
-			log.Println("influx push: ", body.Len())
+			// log.Println("influx push: ", body.Len())
 			req, err := http.NewRequest("POST", url, body)
 			ok(err)
 
@@ -118,8 +119,18 @@ func feedInflux(srcFilename, dstUrl string) {
 		os.Exit(1)
 	}
 
-	src, err := os.Open(srcFilename)
+	srcFile, err := os.Open(srcFilename)
 	ok(err)
+	finfo, err := srcFile.Stat()
+	ok(err)
+	size := finfo.Size()
+
+	// Create the progress reader
+	src := &ioprogress.Reader{
+		Reader:   srcFile,
+		Size:     size,
+		DrawFunc: ioprogress.DrawTerminalf(os.Stderr, ioprogress.DrawTextFormatBar(80)),
+	}
 
 	dst := openInflux(dstUrl)
 	n, err := io.Copy(dst, src)

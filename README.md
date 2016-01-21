@@ -1,3 +1,10 @@
+# build & deploy
+```
+go build
+scp ./appstress dockerhost:appstress
+scp $(go tool -n pprof) dockerhost:pprof
+```
+
 # docker configuration
 ```
 ssh dockerhost
@@ -30,12 +37,6 @@ sudo systemctl stop dockerlog
 sudo systemctl reset-failed
 ```
 
-# build & deploy
-```
-go build
-scp ./appstress dockerhost:appstress
-```
-
 # help
 ```
 ./appstress -h
@@ -44,26 +45,20 @@ scp ./appstress dockerhost:appstress
 # run benchmarks
 ## batch tb
 ```
-sudo systemd-run --unit=appstress /home/core/appstress -all -name tb 1000 pull rmall sleep tb sleep rmall
-systemctl status appstress
-journalctl -u appstress -f
+sudo systemd-run --unit=appstress /home/core/appstress -all -name tb -b 5000 pull rmall sleep tb sleep rmall
 ```
 
 ## parallel tn
 ```
-sudo systemd-run --unit=appstress_tn -p LimitNOFILE=1048576 -p LimitNPROC=1048576 /home/core/appstress -all -name tn -n 1000 pull rmall sleep tn sleep rmall
-systemctl status appstress_tn
-journalctl -u appstress_tn -f
+sudo systemd-run --unit=appstress -p LimitNOFILE=1048576 -p LimitNPROC=1048576 /home/core/appstress -all -name tn -n 1000 pull rmall sleep tn sleep rmall
 ```
 
 ## batch & parallel
 ```
-sudo systemd-run --unit=appstress_tnb -p LimitNOFILE=1048576 -p LimitNPROC=1048576 /home/core/appstress -all -name tnb -n 5 -b 100 pull rmall sleep tnb sleep rmall
-systemctl status appstress_tnb
-journalctl -u appstress_tnb -f
+sudo systemd-run --unit=appstress -p LimitNOFILE=1048576 -p LimitNPROC=1048576 /home/core/appstress -all -name tnb -n 5 -b 100 pull rmall sleep tnb sleep rmall
 ```
 
-## watch logs
+## watch appstress logs
 ```
 tailf /influx.data
 cat /influx.data | wc -l
@@ -80,7 +75,7 @@ journalctl -u appstress -f
 # copy results
 scp dockerhost:/influx.data influx-`date -I`.data
 # feed influx
-./appstress -feedInflux influx-`date -I`.data -influx "http://127.0.0.1:8083/write?db=docker"
+./appstress -feedInflux influx-`date -I`.data -influx "http://127.0.0.1:8086/write?db=docker"
 ```
 
 # ulimits for ssh
