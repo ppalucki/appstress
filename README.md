@@ -1,13 +1,20 @@
 # docker configuration
 ```
+ssh dockerhost
 sudo systemctl edit --full docker
 # add
 Environment=GODEBUG=schedtrace=2000
 --debug
 sudo systemctl enable docker
 sudo systemctl start docker
-sudo systemctl restart docker
 sudo systemctl status docker
+sudo systemctl cat docker
+
+# resurrect (checkout systemd killmode)
+sudo systemctl restart docker
+sudo systemctl kill docker
+./appstress rmall
+docker info
 ```
 
 # dockerlog 
@@ -15,7 +22,7 @@ sudo systemctl status docker
 ```
 sudo systemd-run --unit=dockerlog bash -c 'journalctl --unit docker --follow --output cat >/var/log/docker.log'
 sudo systemctl status dockerlog
-tail /var/log/docker.log
+tail -f /var/log/docker.log
 ```
 ## reset
 ```
@@ -51,7 +58,7 @@ journalctl -u appstress_tn -f
 
 ## batch & parallel
 ```
-sudo systemd-run --unit=appstress_tnb -p LimitNOFILE=1048576 -p LimitNPROC=1048576 /home/core/appstress -all -name tnb -n 50 -b 100 pull rmall sleep tnb sleep rmall
+sudo systemd-run --unit=appstress_tnb -p LimitNOFILE=1048576 -p LimitNPROC=1048576 /home/core/appstress -all -name tnb -n 5 -b 100 pull rmall sleep tnb sleep rmall
 systemctl status appstress_tnb
 journalctl -u appstress_tnb -f
 ```
