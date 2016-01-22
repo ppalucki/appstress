@@ -9,7 +9,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fsouza/go-dockerclient"
+	docker "github.com/fsouza/go-dockerclient"
+	// TODO:
+	docker "github.com/docker/engine-api/client"
+	// dockerTypes "github.com/docker/engine-api/types"
 )
 
 var (
@@ -287,7 +290,7 @@ func storeEvents() {
 	go func() {
 		for {
 			e := <-listener
-			store("events", nil, map[string]interface{}{"value": 1, "kind": e.Status})
+			store("events", map[string]string{"kind": e.Status}, map[string]interface{}{"value": 1})
 		}
 	}()
 }
