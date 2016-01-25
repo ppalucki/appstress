@@ -12,6 +12,7 @@ sudo systemctl edit --full docker
 # add
 Environment=GODEBUG=schedtrace=2000
 --debug
+sudo systemctl cat docker
 sudo systemctl enable docker
 sudo systemctl start docker
 sudo systemctl status docker
