@@ -12,12 +12,12 @@ const (
 	INFLUX_FILE = "influx.data"
 	INFLUX_URL  = "file://" + INFLUX_FILE
 	// INFLUX_URL = "http://localhost:8086/write?db=docker"
-	DOCKER_URL = "http://127.0.0.1:8080"
+	// DOCKER_URL = "http://127.0.0.1:8080"
 	// DOCKER_URL     = "unix:///var/run/docker.sock" // panic: [main.create:168] Post http://unix.sock/containers/create?name=tn-1452521422-105: dial unix /var/run/docker.sock: connect: resource temporarily unavailable // unix
 )
 
 var (
-	dockerUrl = flag.String("dockerUrl", DOCKER_URL, "docker url")
+	dockerUrl = flag.String("dockerUrl", "http://127.0.0.1:8080", "docker url")
 
 	allOn = flag.Bool("all", false, "all on (the same ass -status -events -proc -sched)")
 
@@ -102,7 +102,10 @@ func main() {
 
 	initInflux(*influxUrl)
 
-	initDocker()
+	if !initDocker(*dockerUrl) {
+		log.Printf("cannot connect to docker: %q\n", *dockerUrl)
+		return
+	}
 
 	all := []*bool{infoOn,
 		statusOn,
