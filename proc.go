@@ -78,5 +78,5 @@ func storeProc(pidfile string, interval time.Duration) {
 
 	procData := map[string]interface{}{"threads": threads, "vmsize": int(mi.VMS), "rss": int(mi.RSS)}
 	log.Println("proc = ", procData)
-	store("process", nil, procData)
+	store("process", map[string]string{"pid": strconv.Itoa(int(pid))}, procData)
 }

@@ -40,7 +40,9 @@ func initDocker() {
 func getAll(all bool) []docker.APIContainers {
 	opts := docker.ListContainersOptions{All: all}
 	containers, err := dockerClient.ListContainers(opts)
-	ok(err)
+	if warn(err) {
+		return nil
+	}
 	return containers
 }
 
@@ -99,16 +101,17 @@ func create(name, image, cmd string) string {
 	if err == docker.ErrContainerAlreadyExists {
 		log.Println("create ignored - already exists!")
 		return ""
-	} else {
-		ok(err)
+	}
+	if warn(err) {
+		return ""
 	}
 	return cont.ID
 }
 
-func start(id string) {
+func start(id string) bool {
 	hc := &docker.HostConfig{}
 	err := dockerClient.StartContainer(id, hc)
-	warn(err)
+	return !warn(err)
 }
 
 /////////////////////////////
@@ -204,11 +207,16 @@ func runnning() int {
 	return v
 }
 
-func run(name, image, cmd string) string {
+func run(name, image, cmd string) int {
 	id := create(name, image, cmd)
-	start(id)
-	return id
-
+	if id != "" {
+		if start(id) {
+			return 1
+		} else {
+			return 0
+		}
+	}
+	return 1
 }
 
 /////////////////
@@ -216,41 +224,50 @@ func run(name, image, cmd string) string {
 /////////////////
 
 // b number of containers in batch running in n goroutines
-func runBonN(b, n int, baseName, image, cmd string) {
+func runBonN(b, n int, baseName, image, cmd string) int {
+	cnt := 0
 	wg := sync.WaitGroup{}
 	wg.Add(n) // number of goroutines
 	for i := 0; i < n; i++ {
 		go func(i int) {
 			for j := 0; j < b; j++ {
 				name := fmt.Sprintf("%s-%d-%d", baseName, i, j)
-				run(name, image, cmd)
+				cnt += run(name, image, cmd)
 			}
 			wg.Done()
 		}(i)
 	}
 	wg.Wait()
+	storeLog("runBonN done success=", strconv.Itoa(cnt))
+	return cnt
 }
 
 // run on by one up to B
-func runB(b int, baseName, image, cmd string) {
+func runB(b int, baseName, image, cmd string) int {
+	cnt := 0
 	for i := 0; i < b; i++ {
 		name := fmt.Sprintf("%s-%d", baseName, i)
-		run(name, image, cmd)
+		cnt += run(name, image, cmd)
 	}
+	storeLog("runB done success=", strconv.Itoa(cnt))
+	return cnt
 }
 
 // run N containers in parallel
-func runN(n int, baseName, image, cmd string) {
+func runN(n int, baseName, image, cmd string) int {
+	cnt := 0
 	wg := sync.WaitGroup{}
 	wg.Add(n)
 	for i := 0; i < n; i++ {
 		go func(i int) {
 			name := fmt.Sprintf("%s-%d", baseName, i)
-			run(name, image, cmd)
+			cnt += run(name, image, cmd)
 			wg.Done()
 		}(i)
 	}
 	wg.Wait()
+	storeLog("runN done success=", strconv.Itoa(cnt))
+	return cnt
 }
 
 ///////////

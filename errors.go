@@ -36,3 +36,12 @@ func warn(err error) bool {
 	}
 	return false
 }
+
+func warnStore(err error) bool {
+	if err != nil {
+		msg := where(err)
+		storeLog("WARN:", msg)
+		return true
+	}
+	return false
+}

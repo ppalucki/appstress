@@ -67,13 +67,22 @@ func initInflux(influxUrl string) {
 
 	var writer io.Writer
 
-	u, err := url.Parse(influxUrl)
-	ok(err)
-	if u.Scheme == "http" {
-		writer = openInflux(influxUrl)
-	} else {
-		writer = openFile(u.Host)
+	switch influxUrl {
+	case "null":
+		writer = ioutil.Discard
+	case "stdout":
+		writer = os.Stdout
+	default:
+		u, err := url.Parse(influxUrl)
+		ok(err)
+		if u.Scheme == "http" {
+			writer = openInflux(influxUrl)
+		} else {
+			writer = openFile(u.Host)
+		}
+
 	}
+
 	go func() {
 		for {
 			select {
