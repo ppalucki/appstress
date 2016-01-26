@@ -23,15 +23,19 @@ var (
 //  init  //
 ////////////
 
-func initDocker() {
+func initDocker() bool {
 	// connect docker
 	// c, err := docker.NewClientFromEnv()
 	var err error
 	dockerClient, err = docker.NewClient(DOCKER_URL)
-	warn(err)
+	ok := warn(err)
+	if !ok {
+		return ok
+	}
 	//  check connection
 	err = dockerClient.Ping()
-	warn(err)
+	ok = warn(err)
+	return ok
 }
 
 /////////////////////////////
