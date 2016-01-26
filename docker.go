@@ -11,7 +11,7 @@ import (
 
 	docker "github.com/fsouza/go-dockerclient"
 	// TODO:
-	docker "github.com/docker/engine-api/client"
+	// docker "github.com/docker/engine-api/client"
 	// dockerTypes "github.com/docker/engine-api/types"
 )
 
@@ -108,7 +108,7 @@ func create(name, image, cmd string) string {
 func start(id string) {
 	hc := &docker.HostConfig{}
 	err := dockerClient.StartContainer(id, hc)
-	ok(err)
+	warn(err)
 }
 
 /////////////////////////////
@@ -278,6 +278,38 @@ func tnb() {
 	runBonN(*B, *N, name, *IMAGE, *CMD)
 }
 
+// log2 increase a number of containers starting from 1 up to n in batch
+// with rmall and sleep between
+// N defines parallelism
+// B - max defines number of containers in batch
+func doubleB() {
+	b := 1
+	for b <= *B {
+		name := fmt.Sprintf("doubleB-tnb-%d", time.Now().Unix())
+		storeLog(fmt.Sprintf("dobuleB with b=%d (n=%d)", b, *N))
+		runBonN(b, *N, name, *IMAGE, *CMD)
+		sleep()
+		rmAll()
+		sleep()
+		b *= 2
+	}
+}
+
+// log2 increase a number of containers starting from 1 up to n in N parallel
+// with rmall and sleep between
+func doubleN() {
+	n := 1
+	for n <= *N {
+		name := fmt.Sprintf("doubleN-tnb-%d", time.Now().Unix())
+		storeLog(fmt.Sprintf("dobule with n=%d (b=%d)", n, *B))
+		runBonN(*B, n, name, *IMAGE, *CMD)
+		sleep()
+		rmAll()
+		sleep()
+		n *= 2
+	}
+}
+
 /////////////////////////////
 //  monitoring goroutines  //
 /////////////////////////////
@@ -297,7 +329,10 @@ func storeEvents() {
 
 // store info response in cyclic manner
 func storeInfo(interval time.Duration) {
+	start := time.Now()
 	i := info()
+	duration := time.Since(start)
+
 	if i != nil {
 
 		containers, err := strconv.Atoi(i["Containers"])
@@ -311,6 +346,7 @@ func storeInfo(interval time.Duration) {
 			"containers":  containers,
 			"ngoroutines": goroutines,
 			"nfd":         nfd,
+			"duration":    int64(duration),
 		}
 		log.Println("info = ", d)
 		store("info", nil, d)
@@ -322,8 +358,13 @@ func storeStatuses(interval time.Duration) {
 	go func() {
 		t := time.NewTicker(interval)
 		for range t.C {
+
+			start := time.Now()
 			s := statuses(true)
-			store("statuses", nil, statusesToFields(s))
+			duration := time.Since(start)
+			fields := statusesToFields(s)
+			fields["duration"] = int64(duration)
+			store("statuses", nil, fields)
 			log.Println("statuses = ", s)
 		}
 	}()

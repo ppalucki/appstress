@@ -43,7 +43,7 @@ sudo systemctl reset-failed
 ./appstress -h
 ```
 
-# run benchmarks
+# run benchmarks scenarios
 ## batch tb
 ```
 sudo systemd-run --unit=appstress /home/core/appstress -all -name tb -b 5000 pull rmall sleep tb sleep rmall
@@ -56,8 +56,23 @@ sudo systemd-run --unit=appstress -p LimitNOFILE=1048576 -p LimitNPROC=1048576 /
 
 ## batch & parallel
 ```
-sudo systemd-run --unit=appstress -p LimitNOFILE=1048576 -p LimitNPROC=1048576 /home/core/appstress -all -name tnb -n 5 -b 100 pull rmall sleep tnb sleep rmall
+sudo systemd-run --unit=appstress -p LimitNOFILE=1048576 -p LimitNPROC=1048576 /home/core/appstress -all -name tnb -n 500 -b 100 pull rmall sleep tnb sleep rmall
 ```
+
+## parallel increase 256 * 10 (max)
+```
+# double n (up to n clients increasd by factor 2, each running 10 containers)
+sudo systemd-run --unit=appstress -p LimitNOFILE=1048576 -p LimitNPROC=1048576 /home/core/appstress -all -name doublen -n 256 -b 10 pull rmall doublen
+# double b (up to b batch size increasd by factor 2, run by n clients)
+sudo systemd-run --unit=appstress -p LimitNOFILE=1048576 -p LimitNPROC=1048576 /home/core/appstress -all -name doubleb -n 10 -b 256 pull rmall doubleb 
+```
+
+## paralllel direct to influx
+```
+ssh -R 8086:127.0.0.1:8086 dockerhost
+sudo systemd-run --unit=appstress -p LimitNOFILE=1048576 -p LimitNPROC=1048576 /home/core/appstress -all -name doubleb -influx='http://127.0.0.1:8086/write?db=docker' -feedLines=10 -n 10 -b 256 pull rmall doubleb 
+```
+
 
 ## watch appstress logs
 ```
@@ -69,6 +84,9 @@ cat /influx.data | wc -l
 ```
 systemctl status appstress
 journalctl -u appstress -f
+# reset
+systemctl stop appstress
+sudo systemctl reset-failed
 ```
 
 # analyze
@@ -84,4 +102,6 @@ scp dockerhost:/influx.data influx-`date -I`.data
 systemctl edit --full sshd@
 LimitNOFILE=infinity
 ```
+
+
 

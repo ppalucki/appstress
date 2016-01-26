@@ -156,14 +156,20 @@ func main() {
 
 	cmds := map[string]func(){
 		// command (blocking)
-		"rmall":        rmAll,
-		"killall":      killAll,
-		"pull":         pullIMAGE,
-		"t1":           t1,
-		"tn":           tn,
-		"tb":           tb,
-		"tnb":          tnb,
-		"sleep":        sleep,
+		"rmall":   rmAll,
+		"killall": killAll,
+		"pull":    pullIMAGE,
+		"sleep":   sleep,
+
+		// scenarios
+		"t1":      t1,
+		"tn":      tn,
+		"tb":      tb,
+		"tnb":     tnb,
+		"doublen": doubleN,
+		"doubleb": doubleB,
+
+		// debuggers
 		"dumpInfo":     dumpInfo,
 		"dumpStatuses": dumpStatuses,
 	}
