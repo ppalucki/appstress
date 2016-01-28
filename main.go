@@ -53,9 +53,12 @@ var (
 	N = flag.Int("n", 100, "how many containers(tn) or batches (tnb) to start in parallel")
 	B = flag.Int("b", 1000, "how many containers to start in on batch")
 
-	NAME  = flag.String("name", "docker", "name tag")
+	// docker options
+	NAME  = flag.String("name", "docker", "name tag - name of experiment")
 	IMAGE = flag.String("image", "alpine", "docker image")
-	CMD   = flag.String("cmd", "sleep 8640000", "docker cmd")
+	CMD   = flag.String("cmd", "sleep 8640000", "docker entrypoint & cmd overwrite")
+	TTY   = flag.Bool("tty", false, "allocate tty")
+	NET   = flag.String("net", "", " empty or kind of network")
 
 	// runtime vars
 	wg   sync.WaitGroup

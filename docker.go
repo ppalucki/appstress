@@ -79,11 +79,11 @@ func pull(name string) string {
 	case docker.ErrNoSuchImage:
 		// pull stress image
 		err = dockerClient.PullImage(docker.PullImageOptions{
-			Repository: "alpine",
+			Repository: name,
 			Tag:        "latest",
 		}, docker.AuthConfiguration{})
 		ok(err)
-		i, err = dockerClient.InspectImage("alpine")
+		i, err = dockerClient.InspectImage(name)
 		ok(err)
 	default:
 		warn(err)
@@ -95,10 +95,29 @@ func pull(name string) string {
 }
 
 // run returns container.ID
-func create(name, image, cmd string) string {
-	cmds := strings.Split(cmd, " ")
-	config := &docker.Config{Cmd: cmds, Image: image, NetworkDisabled: true}
-	cc := docker.CreateContainerOptions{Name: name, Config: config}
+func create(name string) string {
+	cmds := strings.Split(*CMD, " ")
+	config := &docker.Config{
+		Image: *IMAGE,
+		// run options
+		Cmd:        cmds[1:len(cmds)],
+		Entrypoint: cmds[0:1],
+		// stdin/out options
+		AttachStderr: false,
+		AttachStdin:  false,
+		AttachStdout: false,
+		Tty:          *TTY,
+		StdinOnce:    false,
+
+		// network options
+		NetworkDisabled: *NET == "",
+	}
+
+	hostConfig := &docker.HostConfig{
+		NetworkMode: *NET,
+	}
+
+	cc := docker.CreateContainerOptions{Name: name, Config: config, HostConfig: hostConfig}
 	cont, err := dockerClient.CreateContainer(cc)
 	if err == docker.ErrContainerAlreadyExists {
 		log.Println("create ignored - already exists!")
@@ -209,8 +228,8 @@ func runnning() int {
 	return v
 }
 
-func run(name, image, cmd string) int {
-	id := create(name, image, cmd)
+func run(name string) int {
+	id := create(name)
 	if id != "" {
 		if start(id) {
 			return 1
@@ -226,7 +245,7 @@ func run(name, image, cmd string) int {
 /////////////////
 
 // b number of containers in batch running in n goroutines
-func runBonN(b, n int, baseName, image, cmd string) int {
+func runBonN(b, n int, baseName string) int {
 	cnt := 0
 	wg := sync.WaitGroup{}
 	wg.Add(n) // number of goroutines
@@ -234,7 +253,7 @@ func runBonN(b, n int, baseName, image, cmd string) int {
 		go func(i int) {
 			for j := 0; j < b; j++ {
 				name := fmt.Sprintf("%s-%d-%d", baseName, i, j)
-				cnt += run(name, image, cmd)
+				cnt += run(name)
 			}
 			wg.Done()
 		}(i)
@@ -245,25 +264,25 @@ func runBonN(b, n int, baseName, image, cmd string) int {
 }
 
 // run on by one up to B
-func runB(b int, baseName, image, cmd string) int {
+func runB(b int, baseName string) int {
 	cnt := 0
 	for i := 0; i < b; i++ {
 		name := fmt.Sprintf("%s-%d", baseName, i)
-		cnt += run(name, image, cmd)
+		cnt += run(name)
 	}
 	storeLog("runB done success=", strconv.Itoa(cnt))
 	return cnt
 }
 
 // run N containers in parallel
-func runN(n int, baseName, image, cmd string) int {
+func runN(n int, baseName string) int {
 	cnt := 0
 	wg := sync.WaitGroup{}
 	wg.Add(n)
 	for i := 0; i < n; i++ {
 		go func(i int) {
 			name := fmt.Sprintf("%s-%d", baseName, i)
-			cnt += run(name, image, cmd)
+			cnt += run(name)
 			wg.Done()
 		}(i)
 	}
@@ -282,19 +301,19 @@ func pullIMAGE() {
 
 func t1() {
 	name := fmt.Sprintf("t1-%d", time.Now().Unix())
-	run(name, *IMAGE, *CMD)
+	run(name)
 }
 func tn() {
 	name := fmt.Sprintf("tn-%d", time.Now().Unix())
-	runN(*N, name, *IMAGE, *CMD)
+	runN(*N, name)
 }
 func tb() {
 	name := fmt.Sprintf("tb-%d", time.Now().Unix())
-	runB(*B, name, *IMAGE, *CMD)
+	runB(*B, name)
 }
 func tnb() {
 	name := fmt.Sprintf("tnb-%d", time.Now().Unix())
-	runBonN(*B, *N, name, *IMAGE, *CMD)
+	runBonN(*B, *N, name)
 }
 
 // log2 increase a number of containers starting from 1 up to n in batch
@@ -306,7 +325,7 @@ func doubleB() {
 	for b <= *B {
 		name := fmt.Sprintf("doubleB-tnb-%d", time.Now().Unix())
 		storeLog(fmt.Sprintf("dobuleB with b=%d (n=%d)", b, *N))
-		runBonN(b, *N, name, *IMAGE, *CMD)
+		runBonN(b, *N, name)
 		sleep()
 		rmAll()
 		sleep()
@@ -321,7 +340,7 @@ func doubleN() {
 	for n <= *N {
 		name := fmt.Sprintf("doubleN-tnb-%d", time.Now().Unix())
 		storeLog(fmt.Sprintf("dobule with n=%d (b=%d)", n, *B))
-		runBonN(*B, n, name, *IMAGE, *CMD)
+		runBonN(*B, n, name)
 		sleep()
 		rmAll()
 		sleep()
