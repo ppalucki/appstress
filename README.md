@@ -49,6 +49,16 @@ sudo systemctl reset-failed
 sudo systemd-run --unit=appstress /home/core/appstress -all -name tb -b 5000 pull rmall sleep tb sleep rmall
 ```
 
+## batch tb + bridge
+```
+sudo systemd-run --unit=appstress -p LimitNOFILE=1048576 -p LimitNPROC=1048576 /home/core/appstress -net bridge -influx 'http://127.0.0.1:8086/write?db=docker' -all -b 5000 pull tb
+```
+
+## batch tb + host
+```
+sudo systemd-run --unit=appstress -p LimitNOFILE=1048576 -p LimitNPROC=1048576 /home/core/appstress -net host -influx 'http://127.0.0.1:8086/write?db=docker' -all -b 5000 rmall pull tb
+```
+
 ## parallel tn
 ```
 sudo systemd-run --unit=appstress -p LimitNOFILE=1048576 -p LimitNPROC=1048576 /home/core/appstress -all -name tn -n 1000 pull rmall sleep tn sleep rmall
@@ -77,8 +87,9 @@ sudo systemd-run --unit=appstress -p LimitNOFILE=1048576 -p LimitNPROC=1048576 /
 # fetch stress
 ```
 ./appstress -image jess/stress -influx null -cmd 'watch -n 1 -- stress -c 1 -t 1' -dockerUrl unix://var/run/docker.sock t1
-sudo systemd-run --unit=appstress -p LimitNOFILE=1048576 -p LimitNPROC=1048576 /home/core/appstress -all -image jess/stress -cmd 'stress -c 1' -b 512 doubleb
+sudo systemd-run --unit=appstress -p LimitNOFILE=1048576 -p LimitNPROC=1048576 /home/core/appstress -all -image jess/stress -tty -cmd 'watch -n 1 stress -c 1 -t 1' -b 512 doubleb
 ```
+# batch stress
 
 ## watch appstress logs
 ```
