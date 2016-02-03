@@ -16,7 +16,6 @@ sudo systemctl cat docker
 sudo systemctl enable docker
 sudo systemctl start docker
 sudo systemctl status docker
-sudo systemctl cat docker
 
 # resurrect (checkout systemd killmode)
 sudo systemctl restart docker
@@ -87,8 +86,12 @@ sudo systemd-run --unit=appstress -p LimitNOFILE=1048576 -p LimitNPROC=1048576 /
 # fetch stress
 ```
 ./appstress -image jess/stress -influx null -cmd 'watch -n 1 -- stress -c 1 -t 1' -dockerUrl unix://var/run/docker.sock t1
-sudo systemd-run --unit=appstress -p LimitNOFILE=1048576 -p LimitNPROC=1048576 /home/core/appstress -all -image jess/stress -tty -cmd 'watch -n 1 stress -c 1 -t 1' -b 512 doubleb
 ```
+# by systemd-run
+```
+sudo systemd-run --unit=appstress -p LimitNOFILE=1048576 -p LimitNPROC=1048576 /home/core/appstress -influx='http://127.0.0.1:8086/write?db=docker' -feedLines=10 -all -image jess/stress -tty -cmd 'watch -n 1 stress -c 1 -t 1' -b 1024 doubleb
+```
+
 # batch stress
 
 ## watch appstress logs
@@ -121,4 +124,10 @@ LimitNOFILE=infinity
 ```
 
 
-
+# telegraf for host-wide metrics (connect to localhost:8086 influxdb)
+```
+cd /home/core
+wget http://get.influxdb.org/telegraf/telegraf-0.10.1-1_linux_amd64.tar.gz
+tar xzvf telegraf-0.10.1-1_linux_amd64.tar.gz
+sudo systemd-run --unit=telegraf /home/core/usr/bin/telegraf -config /home/core/etc/telegraf/telegraf.conf
+```
