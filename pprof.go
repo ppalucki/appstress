@@ -38,7 +38,8 @@ func getHeap(appUrl string, duration time.Duration) {
 func getPprof(appUrl, kind string, duration time.Duration) {
 
 	profileUrl := appUrl + "/debug/pprof/" + kind
-	c := exec.Command(pprofBin, "-seconds", strconv.Itoa(int(duration)), profileUrl)
+	c := exec.Command(pprofBin, "-seconds", strconv.Itoa(int(duration/time.Second)), profileUrl)
+	log.Printf("pprof bin: %q", c.Args)
 	// c := exec.Command("env")
 
 	c.Env = []string{fmt.Sprintf("PPROF_TMPDIR=%s", absDir)}

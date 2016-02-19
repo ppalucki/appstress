@@ -37,8 +37,9 @@ func openInflux(url string) io.Writer {
 	scanner.Split(multiScanLinesFactory(*influxBatch))
 	client := http.Client{}
 	go func() {
+		// wg.Add(1)
+		// defer wg.Done()
 		for scanner.Scan() {
-			wg.Add(1)
 			body := bytes.NewBufferString(scanner.Text())
 			// log.Println("influx push: ", body.Len())
 			req, err := http.NewRequest("POST", url, body)
@@ -53,16 +54,13 @@ func openInflux(url string) io.Writer {
 
 				log.Fatalf("err: %q %q\n", resp.Status, string(b))
 			}
-			wg.Done()
 		}
-
 	}()
 	return pw
 }
 
 // start goroutines that move points to file and optionally to influxdb
 func initInflux(influxUrl string) {
-	wg.Add(1)
 	points = make(chan string)
 
 	var writer io.Writer

@@ -46,6 +46,7 @@ sudo systemctl reset-failed
 ## batch tb
 ```
 sudo systemd-run --unit=appstress /home/core/appstress -all -name tb -b 5000 pull rmall sleep tb sleep rmall
+sudo systemd-run --unit=appstress /home/core/appstress -all -b 500 -profile -influx 'http://127.0.0.1:8086/write?db=docker' tb
 ```
 
 ## batch tb + bridge
@@ -131,3 +132,9 @@ wget http://get.influxdb.org/telegraf/telegraf-0.10.1-1_linux_amd64.tar.gz
 tar xzvf telegraf-0.10.1-1_linux_amd64.tar.gz
 sudo systemd-run --unit=telegraf /home/core/usr/bin/telegraf -config /home/core/etc/telegraf/telegraf.conf
 ```
+
+# pprof analysis
+scp -r dockerhost:pprof_tmpdir/ ..
+scp dockerhost:/bin/docker ..
+go tool pprof ../docker ../pprof_tmpdir/*
+

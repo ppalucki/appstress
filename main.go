@@ -2,7 +2,11 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
+	"os"
+	"reflect"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -49,6 +53,8 @@ var (
 	feedInfluxSrc = flag.String("feedInflux", "", "onetime action that copies data from file to influxUrl")
 	influxBatch   = flag.Int("feedLines", 500, "batch size")
 
+	sleepDuration = flag.Duration("sleep", 1*time.Second, "duration of sleep")
+
 	// test specific
 	N = flag.Int("n", 100, "how many containers(tn) or batches (tnb) to start in parallel")
 	B = flag.Int("b", 1000, "how many containers to start in on batch")
@@ -62,7 +68,7 @@ var (
 
 	// runtime vars
 	wg   sync.WaitGroup
-	quit chan struct{} = make(chan struct{})
+	quit = make(chan struct{})
 )
 
 // // ////////
@@ -70,7 +76,7 @@ var (
 // //////////
 
 func sleep() {
-	time.Sleep(time.Second)
+	time.Sleep(*sleepDuration)
 }
 
 func saveTraces(appUrl string, duration, interval time.Duration) {
@@ -79,14 +85,18 @@ func saveTraces(appUrl string, duration, interval time.Duration) {
 // loop funcation and handle waitGroup and quit channel
 func loop(interval time.Duration, f func()) {
 	go func() {
+		name := runtime.FuncForPC(reflect.ValueOf(f).Pointer()).Name()
 		wg.Add(1)
-		defer wg.Done()
+		defer func() {
+			wg.Done()
+		}()
 		t := time.NewTicker(interval)
 		for {
 			select {
 			case <-t.C:
 				f()
-			case <-quit:
+			case _, ok := <-quit:
+				log.Printf("f %q got quit %v\n", name, ok)
 				return
 			}
 		}
@@ -150,7 +160,7 @@ func main() {
 		initProfiles()
 		loop(*profileInt, func() {
 			getProfile(*dockerUrl, *profileDur)
-			getHeap(*dockerUrl, *profileDur)
+			// getHeap(*dockerUrl, *profileDur)
 		})
 	}
 
@@ -193,8 +203,11 @@ func main() {
 		}
 	}
 
+	cwd, err := os.Getwd()
+	ok(err)
+
 	// fire
-	storeLog("started")
+	storeLog("started in cwd = ", fmt.Sprintf("%q", cwd))
 	for _, cmd := range flag.Args() {
 		wg.Add(1)
 		f := func(cmd string) {
@@ -207,7 +220,8 @@ func main() {
 		}
 		f(cmd)
 	}
-	storeLog("done")
+	storeLog("done - quit")
 	close(quit)
+
 	wg.Wait()
 }
