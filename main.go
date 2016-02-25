@@ -16,14 +16,15 @@ const (
 	INFLUX_FILE = "influx.data"
 	INFLUX_URL  = "file://" + INFLUX_FILE
 	// INFLUX_URL = "http://localhost:8086/write?db=docker"
-	// DOCKER_URL = "http://127.0.0.1:8080"
-	// DOCKER_URL     = "unix:///var/run/docker.sock" // panic: [main.create:168] Post http://unix.sock/containers/create?name=tn-1452521422-105: dial unix /var/run/docker.sock: connect: resource temporarily unavailable // unix
+	DEFAULT_DOCKER_URL = "http://127.0.0.1:8080"
+	// DEFAULT_DOCKER_URL     = "unix:///var/run/docker.sock" // panic: [main.create:168] Post http://unix.sock/containers/create?name=tn-1452521422-105: dial unix /var/run/docker.sock: connect: resource temporarily unavailable // unix
 )
 
 var (
-	dockerUrl = flag.String("dockerUrl", "http://127.0.0.1:8080", "docker url")
+	// dockerUrl = flag.String("dockerUrl", "http://127.0.0.1:8080", "docker url")
+	dockerUrl = flag.String("dockerUrl", DEFAULT_DOCKER_URL, "docker url eg. http://127.0.0.1:8080")
 
-	allOn = flag.Bool("all", false, "all on (the same ass -status -events -proc -sched)")
+	allOn = flag.Bool("all", false, "all on (the same ass -info -events -proc -sched)")
 
 	infoOn  = flag.Bool("info", false, "info on")
 	infoInt = flag.Duration("infoInt", 1*time.Second, "status interval")
@@ -51,7 +52,7 @@ var (
 
 	// feedInflux
 	feedInfluxSrc = flag.String("feedInflux", "", "onetime action that copies data from file to influxUrl")
-	influxBatch   = flag.Int("feedLines", 500, "batch size")
+	influxBatch   = flag.Int("feedLines", 100, "batch size")
 
 	sleepDuration = flag.Duration("sleep", 1*time.Second, "duration of sleep")
 
@@ -120,11 +121,12 @@ func main() {
 		return
 	}
 
-	all := []*bool{infoOn,
-		statusOn,
+	all := []*bool{
+		infoOn,
 		eventsOn,
 		procOn,
 		schedOn,
+		// statusOn,
 	}
 	if *allOn {
 		for _, v := range all {
@@ -170,8 +172,15 @@ func main() {
 		})
 	}
 
+	loop := false
+
+	setLoop := func() {
+		loop = true
+	}
+
 	cmds := map[string]func(){
 		// command (blocking)
+		"loop":    setLoop,
 		"rmall":   rmAll,
 		"killall": killAll,
 		"pull":    pullIMAGE,
@@ -186,8 +195,8 @@ func main() {
 		"doubleb": doubleB,
 
 		// debuggers
-		"dumpInfo":     dumpInfo,
-		"dumpStatuses": dumpStatuses,
+		"dumpinfo":     dumpInfo,
+		"dumpstatuses": dumpStatuses,
 	}
 
 	// precheck
@@ -208,17 +217,25 @@ func main() {
 
 	// fire
 	storeLog("started in cwd = ", fmt.Sprintf("%q", cwd))
-	for _, cmd := range flag.Args() {
-		wg.Add(1)
-		f := func(cmd string) {
-			begin := time.Now()
-			storeLog("cmd start:", cmd)
-			cmds[cmd]()
-			duration := time.Since(begin)
-			storeLog("cmd done:", cmd, "(", duration.String(), ")")
-			wg.Done()
+
+	tasks := flag.Args()
+
+	for {
+		for _, cmd := range tasks {
+			wg.Add(1)
+			f := func(cmd string) {
+				begin := time.Now()
+				storeLog("cmd start:", cmd)
+				cmds[cmd]()
+				duration := time.Since(begin)
+				storeLog("cmd done:", cmd, "(", duration.String(), ")")
+				wg.Done()
+			}
+			f(cmd)
 		}
-		f(cmd)
+		if !loop {
+			break
+		}
 	}
 	storeLog("done - quit")
 	close(quit)

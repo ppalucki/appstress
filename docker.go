@@ -6,7 +6,6 @@ import (
 	"log"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	docker "github.com/fsouza/go-dockerclient"
@@ -221,12 +220,12 @@ func killAll() {
 	}
 }
 
-func runnning() int {
-	m := info()
-	v, err := strconv.Atoi(m["Containers"])
-	ok(err)
-	return v
-}
+// func runnning() int {
+// 	m := info()
+// 	v, err := strconv.Atoi(m["ContainersRunning"])
+// 	ok(err)
+// 	return v
+// }
 
 func run(name string) int {
 	id := create(name)
@@ -244,50 +243,58 @@ func run(name string) int {
 //  scenarios  //
 /////////////////
 
+func timeTaken(st time.Time, cnt int) string {
+	dur := float32(time.Since(st)) / float32(time.Second)
+	return fmt.Sprintf("duration=%0.2fs containers/s=%0.2f", dur, float32(cnt)/dur)
+}
+
 // b number of containers in batch running in n goroutines
 func runBonN(b, n int, baseName string) int {
+	st := time.Now()
 	cnt := 0
-	wg := sync.WaitGroup{}
-	wg.Add(n) // number of goroutines
+	cntch := make(chan int, n*b)
 	for i := 0; i < n; i++ {
 		go func(i int) {
 			for j := 0; j < b; j++ {
 				name := fmt.Sprintf("%s-%d-%d", baseName, i, j)
-				cnt += run(name)
+				cntch <- run(name)
 			}
-			wg.Done()
 		}(i)
 	}
-	wg.Wait()
-	storeLog("runBonN done success=", strconv.Itoa(cnt))
+	for i := 0; i < n*b; i++ {
+		cnt += <-cntch
+	}
+	storeLog("runBonN done success =", strconv.Itoa(cnt), timeTaken(st, cnt))
 	return cnt
 }
 
 // run on by one up to B
 func runB(b int, baseName string) int {
+	st := time.Now()
 	cnt := 0
 	for i := 0; i < b; i++ {
 		name := fmt.Sprintf("%s-%d", baseName, i)
 		cnt += run(name)
 	}
-	storeLog("runB done success=", strconv.Itoa(cnt))
+	storeLog("runB done success=", strconv.Itoa(cnt), timeTaken(st, cnt))
 	return cnt
 }
 
 // run N containers in parallel
 func runN(n int, baseName string) int {
+	st := time.Now()
 	cnt := 0
-	wg := sync.WaitGroup{}
-	wg.Add(n)
+	cntch := make(chan int, n)
 	for i := 0; i < n; i++ {
 		go func(i int) {
 			name := fmt.Sprintf("%s-%d", baseName, i)
-			cnt += run(name)
-			wg.Done()
+			cntch <- run(name)
 		}(i)
 	}
-	wg.Wait()
-	storeLog("runN done success=", strconv.Itoa(cnt))
+	for i := 0; i < n; i++ {
+		cnt += <-cntch
+	}
+	storeLog("runN done success=", strconv.Itoa(cnt), timeTaken(st, cnt))
 	return cnt
 }
 
@@ -327,6 +334,7 @@ func doubleB() {
 		storeLog(fmt.Sprintf("dobuleB with b=%d (n=%d)", b, *N))
 		runBonN(b, *N, name)
 		sleep()
+		storeLog("rmall")
 		rmAll()
 		sleep()
 		b *= 2
@@ -342,6 +350,7 @@ func doubleN() {
 		storeLog(fmt.Sprintf("dobule with n=%d (b=%d)", n, *B))
 		runBonN(*B, n, name)
 		sleep()
+		storeLog("rmall")
 		rmAll()
 		sleep()
 		n *= 2
@@ -371,22 +380,29 @@ func storeInfo(interval time.Duration) {
 	i := info()
 	duration := time.Since(start)
 
-	if i != nil {
-
-		containers, err := strconv.Atoi(i["Containers"])
-		ok(err)
-		goroutines, err := strconv.Atoi(i["NGoroutines"])
-		ok(err)
-		nfd, err := strconv.Atoi(i["NFd"])
-		ok(err)
-
-		d := map[string]interface{}{
-			"containers":  containers,
-			"ngoroutines": goroutines,
-			"nfd":         nfd,
-			"duration":    int64(duration),
+	cast := func(field string) int {
+		v, exists := i[field]
+		if !exists {
+			panic("wrong field:" + field)
+			return 0
 		}
-		log.Println("info = ", d)
+		i, err := strconv.Atoi(v)
+		ok(err)
+		return i
+	}
+
+	if i != nil {
+		d := map[string]interface{}{
+			"containers":        cast("Containers"),
+			"containersRunning": cast("ContainersRunning"),
+			"containersStopped": cast("ContainersStopped"),
+			"containersPaused":  cast("ContainersPaused"),
+			"ngoroutines":       cast("NGoroutines"),
+			"nfd":               cast("NFd"),
+			"duration":          int64(duration / time.Millisecond),
+		}
+		// log.Printf("info = %q\n", d)
+		dump(d)
 		store("info", nil, d)
 	}
 }

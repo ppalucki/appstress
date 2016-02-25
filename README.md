@@ -46,7 +46,8 @@ sudo systemctl reset-failed
 ## batch tb
 ```
 sudo systemd-run --unit=appstress /home/core/appstress -all -name tb -b 5000 pull rmall sleep tb sleep rmall
-sudo systemd-run --unit=appstress /home/core/appstress -all -b 500 -profile -influx 'http://127.0.0.1:8086/write?db=docker' tb
+sudo systemd-run --unit=appstress /home/core/appstress -all -net null -b 2000 -influx 'http://127.0.0.1:8086/write?db=docker' rmall tb tb tb tb 
+sudo systemd-run --unit=appstress /home/core/appstress -all -b 500 -profile -influx 'http://127.0.0.1:8086/write?db=docker' tb 
 ```
 
 ## batch tb + bridge
@@ -137,4 +138,10 @@ sudo systemd-run --unit=telegraf /home/core/usr/bin/telegraf -config /home/core/
 scp -r dockerhost:pprof_tmpdir/ ..
 scp dockerhost:/bin/docker ..
 go tool pprof ../docker ../pprof_tmpdir/*
+
+
+# docker experimental/master
+
+wget https://master.dockerproject.org/linux/386/docker-1.11.0-dev
+
 
