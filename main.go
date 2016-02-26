@@ -50,6 +50,8 @@ var (
 	traceInt  = flag.Duration("traceInt", 1*time.Second, "tracing interval")
 	influxUrl = flag.String("influx", INFLUX_URL, "where to store influx data")
 
+	stackOn = flag.Bool("stack", false, "store & dump stack info")
+
 	// feedInflux
 	feedInfluxSrc = flag.String("feedInflux", "", "onetime action that copies data from file to influxUrl")
 	influxBatch   = flag.Int("feedLines", 100, "batch size")
@@ -180,11 +182,12 @@ func main() {
 
 	cmds := map[string]func(){
 		// command (blocking)
-		"loop":    setLoop,
-		"rmall":   rmAll,
-		"killall": killAll,
-		"pull":    pullIMAGE,
-		"sleep":   sleep,
+		"loop":       setLoop,
+		"storestack": storeStack,
+		"rmall":      rmAll,
+		"killall":    killAll,
+		"pull":       pullIMAGE,
+		"sleep":      sleep,
 
 		// scenarios
 		"t1":      t1,
@@ -197,6 +200,7 @@ func main() {
 		// debuggers
 		"dumpinfo":     dumpInfo,
 		"dumpstatuses": dumpStatuses,
+		"dumpstack":    dumpStack,
 	}
 
 	// precheck
