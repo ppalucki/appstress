@@ -42,6 +42,71 @@ sudo systemctl reset-failed
 ./appstress -h
 ```
 
+## help output
+```
+Usage of ./appstress:
+  -all
+        all on (the same ass -info -events -proc -sched)
+  -b int
+        how many containers to start in on batch (default 1000)
+  -cmd string
+        docker entrypoint & cmd overwrite (default "sleep 8640000")
+  -dockerUrl string
+        docker url eg. http://127.0.0.1:8080 (default "http://127.0.0.1:8080")
+  -events
+        event on
+  -feedInflux string
+        onetime action that copies data from file to influxUrl
+  -feedLines int
+        batch size (default 100)
+  -image string
+        docker image (default "alpine")
+  -influx string
+        where to store influx data (default "file://influx.data")
+  -info
+        info on
+  -infoInt duration
+        status interval (default 1s)
+  -n int
+        how many containers(tn) or batches (tnb) to start in parallel (default 100)
+  -name string
+        name tag - name of experiment (default "docker")
+  -net string
+         empty or kind of network
+  -proc
+        proc on
+  -procInt duration
+        proc interval (default 1s)
+  -procPid string
+        location of docker pid file (default "/var/run/docker.pid")
+  -profile
+        profile on
+  -profileDur duration
+        profile duration (default 10s)
+  -profileInt duration
+        profile interval (default 1s)
+  -sched
+        sched on
+  -schedLog string
+        location of docker.log (default "/var/log/docker.log")
+  -sleep duration
+        duration of sleep (default 1s)
+  -stack
+        store & dump stack info
+  -status
+        status on
+  -statusInt duration
+        status interval (default 1s)
+  -trace
+        tracing on
+  -traceDur duration
+        tracing duration (default 10s)
+  -traceInt duration
+        tracing interval (default 1s)
+  -tty
+        allocate tty
+```
+
 # run benchmarks scenarios
 ## batch tb
 ```

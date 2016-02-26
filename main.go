@@ -13,50 +13,64 @@ import (
 )
 
 const (
-	INFLUX_FILE = "influx.data"
-	INFLUX_URL  = "file://" + INFLUX_FILE
-	// INFLUX_URL = "http://localhost:8086/write?db=docker"
+	// docker default location
 	DEFAULT_DOCKER_URL = "http://127.0.0.1:8080"
 	// DEFAULT_DOCKER_URL     = "unix:///var/run/docker.sock" // panic: [main.create:168] Post http://unix.sock/containers/create?name=tn-1452521422-105: dial unix /var/run/docker.sock: connect: resource temporarily unavailable // unix
+
+	// influx default location
+	DEFAULT_INFLUX_FILE = "influx.data"
+	DEFAULT_INFLUX_URL  = "file://" + DEFAULT_INFLUX_FILE // current working directory
+	// DEFAULT_INFLUX_URL = "http://localhost:8086/write?db=docker"
+
 )
 
 var (
-	// dockerUrl = flag.String("dockerUrl", "http://127.0.0.1:8080", "docker url")
-	dockerUrl = flag.String("dockerUrl", DEFAULT_DOCKER_URL, "docker url eg. http://127.0.0.1:8080")
+	dockerUrl = flag.String("dockerUrl", DEFAULT_DOCKER_URL, "docker url eg. http://127.0.0.1:8080 or unix:///var/run/docker.sock")
 
 	allOn = flag.Bool("all", false, "all on (the same ass -info -events -proc -sched)")
 
-	infoOn  = flag.Bool("info", false, "info on")
-	infoInt = flag.Duration("infoInt", 1*time.Second, "status interval")
+	// aggregated information about container and general from /info
+	infoOn  = flag.Bool("info", false, "gather data from /info API endpoint (from 1.10.x contains aggregated information about no of containers)")
+	infoInt = flag.Duration("infoInt", 1*time.Second, "info interval")
 
-	statusOn  = flag.Bool("status", false, "status on")
+	// status aggregated information of /containers API
+	statusOn  = flag.Bool("status", false, "gather data from /containers API endpoint and aggregate this data")
 	statusInt = flag.Duration("statusInt", 1*time.Second, "status interval")
 
-	eventsOn = flag.Bool("events", false, "event on")
+	// events watch over /events API
+	eventsOn = flag.Bool("events", false, "watch on events and pass them to 'evens' influx measuremnt")
 
-	procOn  = flag.Bool("proc", false, "proc on")
+	// process stats from procfs /proc/PID/status
+	procOn  = flag.Bool("proc", false, "gather data about process from procfs /procs based on PID given with procPID")
 	procPid = flag.String("procPid", "/var/run/docker.pid", "location of docker pid file")
-	procInt = flag.Duration("procInt", 1*time.Second, "proc interval")
+	procInt = flag.Duration("procInt", 1*time.Second, "proc data gather interval")
 
-	schedOn  = flag.Bool("sched", false, "sched on")
-	schedLog = flag.String("schedLog", "/var/log/docker.log", "location of docker.log")
+	// sched tracing (base oo GO
+	schedOn  = flag.Bool("sched", false, "sched on - gather and expose to scheduler tracing data like: threads, runqueue lenght, gomaxprocs, no of goroutines (http://www.goinggo.net/2015/02/scheduler-tracing-in-go.html, https://golang.org/pkg/runtime/")
+	schedLog = flag.String("schedLog", "/var/log/docker.log", "location of docker.log with GODEBUG=schedtrace=10000")
 
-	profileOn  = flag.Bool("profile", false, "profile on")
+	// profile
+	profileOn  = flag.Bool("profile", false, "dump cpu profile data 'go tool pprof' and store it within pprof_tmpdir")
 	profileDur = flag.Duration("profileDur", 10*time.Second, "profile duration")
 	profileInt = flag.Duration("profileInt", 1*time.Second, "profile interval")
 
-	traceOn   = flag.Bool("trace", false, "tracing on")
-	traceDur  = flag.Duration("traceDur", 10*time.Second, "tracing duration")
-	traceInt  = flag.Duration("traceInt", 1*time.Second, "tracing interval")
-	influxUrl = flag.String("influx", INFLUX_URL, "where to store influx data")
+	// trace (uses go tool trace)
+	traceOn  = flag.Bool("trace", false, "tracing on")
+	traceDur = flag.Duration("traceDur", 10*time.Second, "tracing duration")
+	traceInt = flag.Duration("traceInt", 1*time.Second, "tracing interval")
 
+	// one time hw and sw info stack dump
 	stackOn = flag.Bool("stack", false, "store & dump stack info")
+
+	// influx
+	influxUrl = flag.String("influx", DEFAULT_INFLUX_URL, "where to store influx data: alternative use: 'http://localhost:8086/write?db=docker'")
 
 	// feedInflux
 	feedInfluxSrc = flag.String("feedInflux", "", "onetime action that copies data from file to influxUrl")
 	influxBatch   = flag.Int("feedLines", 100, "batch size")
 
-	sleepDuration = flag.Duration("sleep", 1*time.Second, "duration of sleep")
+	// sleep command
+	sleepDuration = flag.Duration("sleep", 1*time.Second, "duration of sleep command")
 
 	// test specific
 	N = flag.Int("n", 100, "how many containers(tn) or batches (tnb) to start in parallel")
@@ -64,10 +78,10 @@ var (
 
 	// docker options
 	NAME  = flag.String("name", "docker", "name tag - name of experiment")
-	IMAGE = flag.String("image", "alpine", "docker image")
-	CMD   = flag.String("cmd", "sleep 8640000", "docker entrypoint & cmd overwrite")
+	IMAGE = flag.String("image", "alpine", "docker image: like 'alpine' or 'jess/stress'")
+	CMD   = flag.String("cmd", "sleep 8640000", "docker entrypoint & cmd overwrite: eg. 'watch -n 1 -- stress -c 1 -t 1'")
 	TTY   = flag.Bool("tty", false, "allocate tty")
-	NET   = flag.String("net", "", " empty or kind of network")
+	NET   = flag.String("net", "", " empty or kind of network: eg. 'net', 'none', 'host'")
 
 	// runtime vars
 	wg   sync.WaitGroup
@@ -128,7 +142,7 @@ func main() {
 		eventsOn,
 		procOn,
 		schedOn,
-		// statusOn,
+		// statusOn - disabled becuase it is possible to get data from docker info about number of containers
 	}
 	if *allOn {
 		for _, v := range all {
